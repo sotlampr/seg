@@ -1,0 +1,7 @@
+torch
+torchvision
+# From detectron2
+opencv-python
+git+https://github.com/facebookresearch/segment-anything
+segmentation-models-pytorch
+pytest

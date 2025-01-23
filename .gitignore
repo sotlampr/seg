@@ -1,0 +1,7 @@
+__pycache__/
+*.pyc
+.*.sw[op]
+*.png
+env/
+pretrained/
+Mask2Former
