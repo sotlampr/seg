@@ -5,7 +5,7 @@ import torchvision.models.segmentation as seg_models
 
 models = {
     "deeplabv3-mobilenet_v3_large":
-        seg_models.DeepLabV3_MobileNet_V3_Large_Weights.COCO_WITH_VOC_LABELS_V1,  # noqa: E501
+        seg_models.DeepLabV3_MobileNet_V3_Large_Weights.COCO_WITH_VOC_LABELS_V1,
     "deeplabv3-resnet50":
         seg_models.DeepLabV3_ResNet50_Weights.COCO_WITH_VOC_LABELS_V1,
     "deeplabv3-resnet101":
@@ -25,7 +25,7 @@ class Model(torch.nn.Module):
     """
     def __init__(self, model):
         super().__init__()
-        self.model = model
+        self.model = torch.compile(model)
         clfcls = model.classifier.__class__
         if clfcls.__name__ == 'LRASPPHead':
             self.model.classifier = clfcls(40, 960, 1, 128)

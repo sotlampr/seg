@@ -3,16 +3,20 @@ import argparse
 from functools import partial
 import glob
 from itertools import repeat
+import time
 import os
 
 import torch
+from torch import nn
 import torch.nn.functional as F
 from torch.utils.data import DataLoader
 from torchvision.io import read_image, ImageReadMode
-from torchvision.transforms import v2
+from torchvision import transforms as v2
 import torchvision.transforms.v2.functional as TF
+from torch.amp import autocast, GradScaler
 
 import m2f, sam, unet, segmentation_pytorch, torchvision_models  # noqa: E401
+from common import IMAGENET_NORM
 
 MODULES = [m2f, sam, unet, torchvision_models, segmentation_pytorch]
 
@@ -26,22 +30,36 @@ def all_models():
 def get_patches(input_shape, target_shape):
     """Get non overlapping patches in (top, bottom, height, width) format"""
     (m1, n1), (m2, n2) = input_shape, target_shape
-    for i in range(0, n1, n2):
-        for j in range(0, m1, m2):
-            yield i, j, n2, m2
+    if m1 <= m2 and n1 <= n2:
+        yield 0, 0, *(x + 32 - (x % 32) for x in input_shape)
+    else:
+        for i in range(0, n1, n2):
+            for j in range(0, m1, m2):
+                yield i, j, n2, m2
 
 
 def train(
     model, train_loader, val_loader, checkpoint_dir, epochs,
-    lr=1e-3, eval_frequency=80, warmup_steps=200
+    lr=1e-3, eval_frequency=80, warmup_steps=200, use_amp=False
 ):
+    scaler = GradScaler(enabled=use_amp)
     optimizer = torch.optim.AdamW(model.parameters(), lr=lr*1e-2)
     lr_incr = (0.99*lr)/warmup_steps
     best_score = 0.
     last_update_step = 0
     epoch = 1
     global_step = 1
+    patience = 15*eval_frequency
     model.train()
+
+    def make_timer():
+        begin = time.time()
+
+        def tick(i):
+            return (time.time()-begin)/i
+        return tick
+
+    tick = make_timer()
     while True:
         if epoch > epochs:
             return
@@ -49,18 +67,22 @@ def train(
         for step, (imgs, msks) in enumerate(train_loader, 1):
             imgs = imgs.to("cuda", non_blocking=True)
             msks = msks.to("cuda", non_blocking=True)
-            pred = model(imgs)
-            loss = dice_loss(pred, msks.float()) \
-                + F.binary_cross_entropy_with_logits(pred, msks.float())
+            with autocast("cuda", dtype=torch.float16, enabled=use_amp):
+                pred = model(imgs)
+                loss = dice_loss(pred, msks.float()) \
+                    + F.binary_cross_entropy_with_logits(pred, msks.float())
             train_loss += loss.item()
             print(
                 "\r", epoch, global_step, round(train_loss/step, 3),
                 round(loss.cpu().item(), 3), end=""
             )
 
-            optimizer.zero_grad()
-            loss.backward()
-            optimizer.step()
+            optimizer.zero_grad(set_to_none=True)
+            scaler.scale(loss).backward()
+            scaler.step(optimizer)
+            scaler.update()
+            # loss.backward()
+            # optimizer.step()
 
             if global_step % eval_frequency == 0:
                 eval_loss = 0
@@ -70,13 +92,15 @@ def train(
                 for i, (imgs, msks) in enumerate(val_loader):
                     imgs = imgs.to("cuda", non_blocking=True)
                     msks = msks.to("cuda", non_blocking=True)
-
-                    with torch.no_grad():
-                        pred = model(imgs)
-                    loss = dice_loss(pred, msks.float()) \
-                        + F.binary_cross_entropy_with_logits(
-                            pred, msks.float()
-                        )
+                    with autocast(
+                        "cuda", dtype=torch.float16, enabled=use_amp
+                    ):
+                        with torch.inference_mode(), torch.no_grad():
+                            pred = model(imgs)
+                            loss = dice_loss(pred, msks.float()) \
+                                + F.binary_cross_entropy_with_logits(
+                                    pred, msks.float()
+                                )
 
                     eval_loss += loss.item()
                     iou += get_iou(pred, msks).item()
@@ -87,11 +111,12 @@ def train(
                 eval_loss /= (i + 1)
                 iou /= (i + 1)
                 fscore /= (i + 1)
+                pe = tick(epoch)
 
                 print(
-                    "\r", epoch, global_step, round(train_loss/step, 3),
-                    "    ", round(eval_loss, 3), round(iou, 3),
-                    round(fscore, 3), end=""
+                    f"\r{epoch} {global_step} {pe:.1f}s "
+                    f"train: {train_loss/step:.3f} val: {eval_loss:.3f} "
+                    f"iou: {iou:.3f} f1: {fscore:.3f} ", end=""
                 )
                 if fscore > best_score:
                     best_score = fscore
@@ -112,10 +137,11 @@ def train(
                             msks[row].float()
                         ).save(f"{checkpoint_dir}/{row}-true.png")
                     with open(f"{checkpoint_dir}/results", "w") as fp:
-                        print(f"{epoch}\t{global_step}\t{fscore}", file=fp)
-
-                elif (global_step - last_update_step) > 4000:
-                    print('\tTraining finished###########')
+                        print(
+                            f"{epoch}\t{global_step}\t{pe}\t{fscore}", file=fp
+                        )
+                elif (global_step - last_update_step) > patience:
+                    print("\t done")
                     return
                 else:
                     print()
@@ -134,22 +160,32 @@ class PlainDataset(torch.utils.data.Dataset):
     def __init__(
         self, img_fnames, mask_fnames, shape=(1024, 1024), augment=False
     ):
-        self.normalize = v2.Normalize(
-            mean=[0.485, 0.456, 0.406], std=[0.229, 0.224, 0.225]
-        )
+        self.normalize = v2.Normalize(**IMAGENET_NORM)
 
         if augment:
-            self.augment = v2.Compose([
-                v2.GaussianNoise(sigma=1e-2),
-                v2.ColorJitter(
-                    brightness=0.3, contrast=0.3, saturation=0.3, hue=0.3
-                )
-            ])
-            self.augment_spatial = v2.Compose([
-                v2.RandomRotation(10),
-                v2.RandomPerspective(distortion_scale=0.3, p=0.3),
+            self.augment = torch.jit.script(nn.Sequential(
+                v2.RandomApply(torch.nn.ModuleList([
+                    v2.ColorJitter(
+                        brightness=0.3, contrast=0.3, saturation=0.3, hue=0.2
+                    )]), p=2/3
+                ),
+                v2.RandomApply(torch.nn.ModuleList([v2.Grayscale(3)]), p=5e-2),
+                v2.RandomInvert(p=2.5e-2),
+            ))
+            self.augment_spatial = torch.jit.script(nn.Sequential(
+                v2.RandomApply(torch.nn.ModuleList([
+                        v2.RandomRotation(15),
+                    ]), p=1/3
+                ),
+                v2.RandomApply(torch.nn.ModuleList([
+                        v2.RandomPerspective(distortion_scale=0.4, p=1.0),
+                    ]), p=1/3
+                ),
                 v2.RandomHorizontalFlip(p=0.5),
-            ])
+                v2.RandomApply(torch.nn.ModuleList([
+                    v2.ElasticTransform(alpha=75.)]), p=1/3
+                )
+            ))
         else:
             self.augment = None
 
@@ -159,10 +195,10 @@ class PlainDataset(torch.utils.data.Dataset):
             with open(img_fname, "rb") as fp:
                 fp.read(16)
                 img_shape = (*map(int.from_bytes, (fp.read(4), fp.read(4))),)
-            self.indices.extend(zip(
-                repeat(img_fname), repeat(mask_fname),
-                get_patches(img_shape, shape)
-            ))
+                self.indices.extend(zip(
+                    repeat(img_fname), repeat(mask_fname),
+                    get_patches(img_shape, shape)
+                ))
 
     def __getitem__(self, idx):
         img_fname, mask_fname, crop_indices = self.indices[idx]
@@ -179,8 +215,8 @@ class PlainDataset(torch.utils.data.Dataset):
             img = self.augment(img)
             aug = self.augment_spatial(torch.cat([img, mask]))
             img, mask = aug[:3], aug[-1:]
-
         img = self.normalize(img)
+
         return img, mask
 
     def __len__(self):
@@ -205,7 +241,7 @@ def read_data(path, shape):
 def intersection_union(input, target):
     """ based on loss function from V-Net paper """
     input = input.view(-1)
-    target = target.view(-1)
+    target = target.reshape(-1)
     intersection = torch.sum(torch.mul(input, target))
     union = torch.sum(input) + torch.sum(target)
     return intersection, union
@@ -243,18 +279,26 @@ if __name__ == "__main__":
     parser.add_argument("-P", "--pretrained", action="store_true")
     parser.add_argument("-o", "--checkpoint-dir", default="../out")
     parser.add_argument("-j", "--num-workers", type=int, default=8)
+    parser.add_argument("-f", "--eval-frequency", type=int, default=200)
+    parser.add_argument("-w", "--warmup-steps", type=int, default=400)
+    parser.add_argument("-m", "--mixed-precision", action="store_true")
     args = parser.parse_args()
+
+    torch.backends.cudnn.benchmark = True
+    torch.set_float32_matmul_precision("high")
 
     shape = (1024, 1024)
     train_dataset, eval_dataset = read_data(args.data_path, shape)
 
     train_loader = DataLoader(
         train_dataset, batch_size=args.batch_size, shuffle=True,
-        num_workers=args.num_workers
+        num_workers=args.num_workers, drop_last=True,
+        pin_memory=True, multiprocessing_context="fork"
     )
     val_loader = DataLoader(
         eval_dataset, batch_size=args.batch_size, shuffle=False,
-        num_workers=args.num_workers
+        num_workers=args.num_workers, pin_memory=True,
+        multiprocessing_context="fork"
     )
     module, model_name = models[args.model]
     model = module.new(model_name, pretrained=args.pretrained).to("cuda")
@@ -264,6 +308,8 @@ if __name__ == "__main__":
 
     train(
         model, train_loader, val_loader, args.checkpoint_dir, args.epochs,
-        lr=args.learning_rate, eval_frequency=200/args.batch_size,
-        warmup_steps=400/args.batch_size
+        lr=args.learning_rate,
+        eval_frequency=args.eval_frequency/args.batch_size,
+        warmup_steps=args.warmup_steps/args.batch_size,
+        use_amp=args.mixed_precision
     )
