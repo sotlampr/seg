@@ -13,6 +13,7 @@ import mask2former  # noqa: E402
 from mask2former import MaskFormer, add_maskformer2_config  # noqa: E402
 sys.path.remove("../Mask2Former")
 
+from common import Upscaler
 from utils import check_for_file, get_pretrained_fname  # noqa: E402
 
 
@@ -41,13 +42,14 @@ def get_url(model_name, weights_ext):
 class Model(nn.Module):
     def __init__(self, model):
         super().__init__()
-        self.model = model
+        self.model = torch.compile(model)
+        self.upscale = torch.compile(Upscaler())
 
     def forward(self, x):
         features = self.model.backbone(x)
         outputs = self.model.sem_seg_head(features)
         masks = outputs["pred_masks"]
-        return F.interpolate(masks, x.shape[2:])
+        return self.upscale(x, masks)
 
 
 def make_model(cfg_file, pretrained_weights=None):

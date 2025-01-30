@@ -1,8 +1,10 @@
+import torch
 from torch import nn
-import torch.nn.functional as F
+from torchvision.transforms.v2.functional import pad, center_crop
 
 import segment_anything
 
+from common import Upscaler, IMAGENET_MIN
 from utils import check_for_file, get_pretrained_fname  # noqa: E402
 
 
@@ -24,16 +26,24 @@ def get_url(model_id, weights_ext):
 class Model(nn.Module):
     def __init__(self, model):
         super().__init__()
-        self.model = model
+        self.model = torch.compile(model)
+        self.upscale = torch.compile(Upscaler())
 
     def forward(self, x):
-        img_embed = self.model.image_encoder(x)
+        pad_h, pad_w = ((1024-n)//2 for n in x.shape[2:])
+        if pad_h or pad_w:
+            img_embed = self.model.image_encoder(
+                pad(x, (pad_w, pad_h), fill=IMAGENET_MIN)
+            )
+        else:
+            img_embed = self.model.image_encoder(x)
+
         prompt_embeds = self.model.prompt_encoder(None, None, None)
         masks, _ = self.model.mask_decoder(
             img_embed, self.model.prompt_encoder.get_dense_pe(),
             *prompt_embeds, False
         )
-        return F.interpolate(masks, x.shape[2:])
+        return self.upscale(x, center_crop(masks, (n//4 for n in x.shape[2:])))
 
 
 def new(model_name, pretrained=False):
