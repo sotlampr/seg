@@ -27,11 +27,38 @@ augment_spatial = v2.Compose([
 
 @pytest.fixture(autouse=True)
 def base_fixture():
-    gc.collect()
-    torch.cuda.empty_cache()
+    free, avail = (x/(1024*1024*1024) for x in torch.cuda.mem_get_info())
+    alloc = torch.cuda.memory_allocated(0)/(1024*1024*1024)
+    cur_rsrv = torch.cuda.memory_reserved(0)/(1024*1024*1024)
+    max_rsrv = torch.cuda.max_memory_reserved(0)/(1024*1024*1024)
+    # print(
+    #     f"\nbefore: free: {free:.1f} avail: {avail:.1f} "
+    #     f"alloc: {alloc:.1f} cur_rsrv: {cur_rsrv:.1f} "
+    #     f"max_rsrv: {max_rsrv:.1f}"
+    # )
+
+
     yield
-    gc.collect()
+    free, avail = (x/(1024*1024*1024) for x in torch.cuda.mem_get_info())
+    alloc = torch.cuda.memory_allocated(0)/(1024*1024*1024)
+    cur_rsrv = torch.cuda.memory_reserved(0)/(1024*1024*1024)
+    max_rsrv = torch.cuda.max_memory_reserved(0)/(1024*1024*1024)
+    # print(
+    #     f"\nafter: free: {free:.1f} avail: {avail:.1f} "
+    #     f"alloc: {alloc:.1f} cur_rsrv: {cur_rsrv:.1f} "
+    #     f"max_rsrv: {max_rsrv:.1f}"
+    # )
     torch.cuda.empty_cache()
+    free, avail = (x/(1024*1024*1024) for x in torch.cuda.mem_get_info())
+    alloc = torch.cuda.memory_allocated(0)/(1024*1024*1024)
+    cur_rsrv = torch.cuda.memory_reserved(0)/(1024*1024*1024)
+    max_rsrv = torch.cuda.max_memory_reserved(0)/(1024*1024*1024)
+    # print(
+    #     f"\tafter: free: {free:.1f} avail: {avail:.1f} "
+    #     f"alloc: {alloc:.1f} cur_rsrv: {cur_rsrv:.1f} "
+    #     f"max_rsrv: {max_rsrv:.1f}"
+    # )
+
 
 
 @pytest.mark.parametrize("module,model", ALL_MODELS)
@@ -47,6 +74,16 @@ def test_url_is_valid(module, model):
 
 
 def load_image_and_annotation(i):
+    free, avail = (x/(1024*1024*1024) for x in torch.cuda.mem_get_info())
+    alloc = torch.cuda.memory_allocated(0)/(1024*1024*1024)
+    cur_rsrv = torch.cuda.memory_reserved(0)/(1024*1024*1024)
+    max_rsrv = torch.cuda.max_memory_reserved(0)/(1024*1024*1024)
+    print(
+        f"\nload_img: free: {free:.1f} avail: {avail:.1f} "
+        f"alloc: {alloc:.1f} cur_rsrv: {cur_rsrv:.1f} "
+        f"max_rsrv: {max_rsrv:.1f}"
+    )
+
     image = TF.convert_image_dtype(
         read_image(f"image-{i}.png").unsqueeze(0),
         torch.float32
@@ -56,17 +93,17 @@ def load_image_and_annotation(i):
     return image, target
 
 
-@pytest.fixture
+@pytest.fixture(scope="session")
 def sample1():
     return load_image_and_annotation("1")
 
 
-@pytest.fixture
+@pytest.fixture(scope="session")
 def sample2():
     return load_image_and_annotation("2")
 
 
-@pytest.fixture
+@pytest.fixture(scope="session")
 def sample3():
     return load_image_and_annotation("3")
 
@@ -77,8 +114,8 @@ def sample3():
 def test_convergence(
     module, model_name, pretrained, val, sample1, sample2, sample3
 ):
-    lr = 1e-4
-    warmup_steps = 200
+    lr = 1e-5 if module.__name__ == "sam" else 1e-4
+    warmup_steps = 100
     if module.models[model_name] is None and pretrained:
         pytest.skip("No pretrained weights available")
     model = module.new(model_name, pretrained).train().cuda()
@@ -123,4 +160,6 @@ def test_convergence(
         if val and step <= warmup_steps:
             for param_group in optim.param_groups:
                 param_group["lr"] += lr_incr
+
         step += 1
+    del model, optim, train_imgs, train_masks, img, targ
