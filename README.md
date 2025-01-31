@@ -1,11 +1,12 @@
-# Features
-  - Only 629 LOC
+# seg: tools for evaluating binary semantic image segmentation models
+
+Features:
+  - 1134 LOC
   - On-the-fly loading images from disk for training
   - Auto-patchification and some augmentation
-
-# Limitations
-  - Only metric is IoU
-  - Every model should output the same size as the input
+  - Almost 300 model \&backbone combinations
+  - SAM \& Mask2Former
+  - Automatic mixed precision training
 
 # Installation
 We need some custom steps wrt detectron and sam
@@ -19,56 +20,39 @@ Run the tests
 `pytest -v`
 
 # Usage
-`./seg.py $data_path unet/vanilla`
-
-# Script options
-models:
-  - m2f/R50
-  - m2f/R101
-  - m2f/swin-base
-  - m2f/swin-small
-  - m2f/swin-tiny
-  - sam/vit-base
-  - sam/vit-large
-  - segmentation\_pytorch/deeplabv3+-resnet50
-  - segmentation\_pytorch/deeplabv3+-resnet101
-  - segmentation\_pytorch/linknet-resnet50
-  - segmentation\_pytorch/linknet-resnet101
-  - segmentation\_pytorch/manet-resnet50
-  - segmentation\_pytorch/manet-resnet101
-  - segmentation\_pytorch/pan-resnet50
-  - segmentation\_pytorch/pan-resnet101
-  - segmentation\_pytorch/pspnet-resnet50
-  - segmentation\_pytorch/pspnet-resnet101
-  - segmentation\_pytorch/unet++-resnet50
-  - segmentation\_pytorch/unet++-resnet101
-  - torchvision\_models/deeplabv3-mobilenet\_v3\_large
-  - torchvision\_models/deeplabv3-resnet50
-  - torchvision\_models/deeplabv3-resnet101
-  - torchvision\_models/fcn-resnet50
-  - torchvision\_models/fcn-resnet101
-  - torchvision\_models/lraspp-mobilenet\_v3\_large
-  - unet/vanilla
-
+The data folder should contain a "train" and "val" directory, each containing an
+"annotations" and "images":
 ```
-usage: seg.py [-h] [-a LEARNING_RATE] [-b BATCH_SIZE] [-e EPOCHS] [-P]
-              [-o CHECKPOINT_DIR] [-j NUM_WORKERS]
-              data_path
-              {MODEL}
-
-positional arguments:
-  data_path
-  {MODEL}
-
-options:
-  -h, --help            show this help message and exit
-  -a LEARNING_RATE, --learning-rate LEARNING_RATE
-  -b BATCH_SIZE, --batch-size BATCH_SIZE
-  -e EPOCHS, --epochs EPOCHS
-  -P, --pretrained
-  -o CHECKPOINT_DIR, --checkpoint-dir CHECKPOINT_DIR
-  -j NUM_WORKERS, --num-workers NUM_WORKERS
+- data
+  data/train
+  data/train/annotations
+  data/train/annotations/0000.png
+  ...
+  data/train
+  data/train/images
+  data/train/images/0000.png
+  ...
+  data/val
+  data/val/annotations
+  data/val/annotations/0000.png
+  ...
+  data/val
+  data/val/images
+  data/val/images/0000.png
+  ...
 ```
+
+The samples will be cropped to `-s,--size` if larger (default: 1024 x 1024):
+
+Run an experiment using:
+`./seg.py $data_path unet/vanilla` -o output
+
+Then on the output folder we get:
+- `results`: A text file with the epoch, step, and best f1 score achieved
+- `*-img.png`: A sample image from the validation set
+- `*-pred.png`: The prediction of the model for the sample image
+- `*-true.png`: The ground truth for the segmentation
+- `checkpoint_best.pth`: The best model
 
 # Developing
 Every model file should define
