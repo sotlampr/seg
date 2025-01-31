@@ -45,9 +45,9 @@ The data folder should contain a "train" and "val" directory, each containing an
 The samples will be cropped to `-s,--size` if larger (default: 1024 x 1024):
 
 Run an experiment using:
-`./seg.py $data_path unet/vanilla` -o output
+`./seg.py $data_path unet/vanilla -o output`
 
-Then on the output folder we get:
+Then in the output directory we get:
 - `results`: A text file with the epoch, step, seconds per epoch,
   and best f1 score achieved
 - `*-img.png`: A sample image from the validation set
