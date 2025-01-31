@@ -1,20 +1,20 @@
+# flake8: noqa: E402
 import os
 import sys
 import pickle
 
 import torch
 from torch import nn
-import torch.nn.functional as F
 from detectron2.config import get_cfg
 from detectron2.projects.deeplab import add_deeplab_config
 
 sys.path.insert(0, "../Mask2Former")
-import mask2former  # noqa: E402
-from mask2former import MaskFormer, add_maskformer2_config  # noqa: E402
+import mask2former
+from mask2former import MaskFormer, add_maskformer2_config
 sys.path.remove("../Mask2Former")
 
 from common import Upscaler
-from utils import check_for_file, get_pretrained_fname  # noqa: E402
+from utils import check_for_file, get_pretrained_fname
 
 
 upstream_url = \

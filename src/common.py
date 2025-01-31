@@ -12,6 +12,9 @@ IMAGENET_MIN = (
 
 
 class Upscaler(nn.Module):
+    """Upscales mask to 4x, concatenates the upscaled the input,
+    and runs an 1x1 convolutin to get the upscaled version.
+    """
     def __init__(self):
         super().__init__()
         self.upscale = nn.ConvTranspose2d(

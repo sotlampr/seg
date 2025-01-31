@@ -5,7 +5,7 @@ from torchvision.transforms.v2.functional import pad, center_crop
 import segment_anything
 
 from common import Upscaler, IMAGENET_MIN
-from utils import check_for_file, get_pretrained_fname  # noqa: E402
+from utils import check_for_file, get_pretrained_fname
 
 
 upstream_url = \
@@ -14,8 +14,7 @@ upstream_url = \
 models = {
     "vit-base": ("vit_b", "01ec64.pth",),
     "vit-large": ("vit_l", "0b3195.pth",),
-    # Too big (vit-large is already around 24G)
-    # "vit-huge": ("vit_h", "4b8939.pth",)
+    "vit-huge": ("vit_h", "4b8939.pth",)
 }
 
 
@@ -30,6 +29,7 @@ class Model(nn.Module):
         self.upscale = torch.compile(Upscaler())
 
     def forward(self, x):
+        # Sam always needs 1024x1024 inputs
         pad_h, pad_w = ((1024-n)//2 for n in x.shape[2:])
         if pad_h or pad_w:
             img_embed = self.model.image_encoder(

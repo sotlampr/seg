@@ -20,9 +20,6 @@ models = {
 
 
 class Model(torch.nn.Module):
-    """Replace the classifier head with a fresh one with 2 classes, get the
-    "out" key in forward, crop to 388x388.
-    """
     def __init__(self, model):
         super().__init__()
         self.model = torch.compile(model)
@@ -35,8 +32,6 @@ class Model(torch.nn.Module):
 
     def forward(self, x):
         out = self.model(x)["out"]
-        # print(x.shape, out.shape)
-        # import ipdb; ipdb.set_trace()
         if out.shape[2:] != x.shape[2:]:
             out = F.interpolate(out, x.shape[2:])
         return out
