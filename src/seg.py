@@ -3,6 +3,7 @@ import argparse
 from functools import partial
 import glob
 from itertools import repeat
+from math import log10
 import time
 import os
 
@@ -44,7 +45,7 @@ def train(
 ):
     scaler = GradScaler(enabled=use_amp)
     optimizer = torch.optim.AdamW(model.parameters(), lr=lr*1e-2)
-    lr_incr = (0.99*lr)/warmup_steps
+    lr_log = log10(lr)
     best_score = 0.
     last_update_step = 0
     epoch = 1
@@ -71,18 +72,19 @@ def train(
                 pred = model(imgs)
                 loss = dice_loss(pred, msks.float()) \
                     + F.binary_cross_entropy_with_logits(pred, msks.float())
+            if loss.isnan():
+                print("  nan loss  ")
+                continue
             train_loss += loss.item()
             print(
-                "\r", epoch, global_step, round(train_loss/step, 3),
-                round(loss.cpu().item(), 3), end=""
+                f"\r{epoch:3d} {global_step:6d} {train_loss/step:.03f} "
+                f"{loss.cpu().item():.3f}", end=""
             )
 
             optimizer.zero_grad(set_to_none=True)
             scaler.scale(loss).backward()
             scaler.step(optimizer)
             scaler.update()
-            # loss.backward()
-            # optimizer.step()
 
             if global_step % eval_frequency == 0:
                 eval_loss = 0
@@ -114,9 +116,9 @@ def train(
                 pe = tick(epoch)
 
                 print(
-                    f"\r{epoch} {global_step} {pe:.1f}s "
-                    f"train: {train_loss/step:.3f} val: {eval_loss:.3f} "
-                    f"iou: {iou:.3f} f1: {fscore:.3f} ", end=""
+                    f"\r{epoch:3d} {global_step:6d} {pe:3.1f}s "
+                    f"train: {train_loss/step:.03f} val: {eval_loss:.03f} "
+                    f"iou: {iou:.03f} f1: {fscore:.03f} ", end=""
                 )
                 if fscore > best_score:
                     best_score = fscore
@@ -149,8 +151,10 @@ def train(
                 model.train()
 
             if global_step <= warmup_steps:
+                lr = 10**(lr_log-2*(1-(global_step/warmup_steps)))
                 for param_group in optimizer.param_groups:
-                    param_group["lr"] += lr_incr
+                    param_group["lr"] = lr
+                print(f"  LR is NOW {param_group['lr']:.03g}", end="    ")
             global_step += 1
         train_loss = 0
         epoch += 1
@@ -193,7 +197,9 @@ class PlainDataset(torch.utils.data.Dataset):
         self.indices = []
         for (img_fname, mask_fname) in zip(img_fnames, mask_fnames):
             with open(img_fname, "rb") as fp:
-                fp.read(16)
+                sig = fp.read(4)
+                assert sig == b'\x89PNG'
+                fp.read(12)
                 img_shape = (*map(int.from_bytes, (fp.read(4), fp.read(4))),)
                 self.indices.extend(zip(
                     repeat(img_fname), repeat(mask_fname),
@@ -273,22 +279,24 @@ if __name__ == "__main__":
     parser = argparse.ArgumentParser()
     parser.add_argument("data_path")
     parser.add_argument("model", choices=models)
+    parser.add_argument("-P", "--pretrained", action="store_true")
     parser.add_argument("-a", "--learning-rate", type=float, default=1e-4)
     parser.add_argument("-b", "--batch-size", type=int, default=2)
     parser.add_argument("-e", "--epochs", type=int, default=80)
-    parser.add_argument("-P", "--pretrained", action="store_true")
-    parser.add_argument("-o", "--checkpoint-dir", default="../out")
-    parser.add_argument("-j", "--num-workers", type=int, default=8)
     parser.add_argument("-f", "--eval-frequency", type=int, default=200)
-    parser.add_argument("-w", "--warmup-steps", type=int, default=400)
+    parser.add_argument("-j", "--num-workers", type=int, default=8)
     parser.add_argument("-m", "--mixed-precision", action="store_true")
+    parser.add_argument("-o", "--checkpoint-dir", default="../out")
+    parser.add_argument(
+        "-s", "--shape", type=int, nargs=2, default=(1024, 1024)
+    )
+    parser.add_argument("-w", "--warmup-steps", type=int, default=400)
     args = parser.parse_args()
 
     torch.backends.cudnn.benchmark = True
     torch.set_float32_matmul_precision("high")
 
-    shape = (1024, 1024)
-    train_dataset, eval_dataset = read_data(args.data_path, shape)
+    train_dataset, eval_dataset = read_data(args.data_path, args.shape)
 
     train_loader = DataLoader(
         train_dataset, batch_size=args.batch_size, shuffle=True,
