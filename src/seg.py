@@ -1,22 +1,32 @@
 #!/usr/bin/env python
+"""
+Copyright (C) 2025  Sotiris Lamrpinidis
+
+This program is free software and all terms of the GNU General Public License
+version 3 as published by the Free Software Foundation apply. See the LICENSE
+file in the root directory of the project or <https://www.gnu.org/licenses/>
+for more details.
+
+"""
 import argparse
 from functools import partial
 import glob
 from itertools import repeat
 from math import log10
-import time
 import os
+import sys
+import time
 
 import torch
 from torch import nn
+from torch.amp import autocast, GradScaler
 import torch.nn.functional as F
 from torch.utils.data import DataLoader
-from torchvision.io import read_image, ImageReadMode
 from torchvision import transforms as v2
+from torchvision.io import read_image, ImageReadMode
 import torchvision.transforms.v2.functional as TF
-from torch.amp import autocast, GradScaler
 
-import m2f, sam, unet, segmentation_pytorch, torchvision_models  # noqa: E401
+import m2f, sam, unet, segmentation_pytorch, torchvision_models
 from common import IMAGENET_NORM
 
 MODULES = [m2f, sam, unet, torchvision_models, segmentation_pytorch]
@@ -41,7 +51,8 @@ def get_patches(input_shape, target_shape):
 
 def train(
     model, train_loader, val_loader, checkpoint_dir, epochs,
-    lr=1e-3, eval_frequency=80, warmup_steps=200, use_amp=False
+    lr=1e-3, eval_frequency=80, warmup_steps=200, use_amp=False,
+    clip_gradients=False
 ):
     scaler = GradScaler(enabled=use_amp)
     optimizer = torch.optim.AdamW(model.parameters(), lr=lr*1e-2)
@@ -73,7 +84,7 @@ def train(
                 loss = dice_loss(pred, msks.float()) \
                     + F.binary_cross_entropy_with_logits(pred, msks.float())
             if loss.isnan():
-                print("  nan loss  ")
+                print("  nan loss!!!")
                 continue
             train_loss += loss.item()
             print(
@@ -83,6 +94,11 @@ def train(
 
             optimizer.zero_grad(set_to_none=True)
             scaler.scale(loss).backward()
+            if clip_gradients:
+                scaler.unscale_(optimizer)
+                torch.nn.utils.clip_grad_norm_(
+                    model.parameters(), max_norm=1.0
+                )
             scaler.step(optimizer)
             scaler.update()
 
@@ -279,6 +295,7 @@ if __name__ == "__main__":
     parser = argparse.ArgumentParser()
     parser.add_argument("data_path")
     parser.add_argument("model", choices=models)
+    parser.add_argument("-C", "--clip-gradients", action="store_true")
     parser.add_argument("-P", "--pretrained", action="store_true")
     parser.add_argument("-a", "--learning-rate", type=float, default=1e-4)
     parser.add_argument("-b", "--batch-size", type=int, default=2)
@@ -313,11 +330,22 @@ if __name__ == "__main__":
 
     if not os.path.exists(args.checkpoint_dir):
         os.mkdir(args.checkpoint_dir)
+    try:
+        train(
+            model, train_loader, val_loader, args.checkpoint_dir, args.epochs,
+            lr=args.learning_rate,
+            eval_frequency=args.eval_frequency/args.batch_size,
+            warmup_steps=args.warmup_steps/args.batch_size,
+            use_amp=args.mixed_precision,
+            clip_gradients=args.clip_gradients
+        )
+    except KeyboardInterrupt:
+        print()
+        print("Received keyboard interrupt. bye!")
 
-    train(
-        model, train_loader, val_loader, args.checkpoint_dir, args.epochs,
-        lr=args.learning_rate,
-        eval_frequency=args.eval_frequency/args.batch_size,
-        warmup_steps=args.warmup_steps/args.batch_size,
-        use_amp=args.mixed_precision
+    u, t = torch.cuda.mem_get_info()
+    print(
+        f"GPU {t/1024**3:.1f} total {u/1024**3:.1f} "
+        f"used {(t-u)/1024**3:.1f} free"
     )
+    sys.exit(0)

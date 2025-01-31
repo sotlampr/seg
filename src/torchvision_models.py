@@ -1,3 +1,12 @@
+"""
+Copyright (C) 2025  Sotiris Lamrpinidis
+
+This program is free software and all terms of the GNU General Public License
+version 3 as published by the Free Software Foundation apply. See the LICENSE
+file in the root directory of the project or <https://www.gnu.org/licenses/>
+for more details.
+
+"""
 import torch
 import torch.nn.functional as F
 import torchvision.models.segmentation as seg_models
