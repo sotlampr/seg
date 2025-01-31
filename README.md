@@ -1,7 +1,7 @@
 # seg: tools for evaluating binary semantic image segmentation models
 
 Features:
-  - 1134 LOC
+  - 1134 LOC and a 6-line requirements.txt file
   - On-the-fly loading images from disk for training
   - Auto-patchification and some augmentation
   - Almost 300 model \& backbone combinations
