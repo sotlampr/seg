@@ -4,7 +4,7 @@ Features:
   - 1134 LOC
   - On-the-fly loading images from disk for training
   - Auto-patchification and some augmentation
-  - Almost 300 model \&backbone combinations
+  - Almost 300 model \& backbone combinations
   - SAM \& Mask2Former
   - Automatic mixed precision training
 
