@@ -48,7 +48,8 @@ Run an experiment using:
 `./seg.py $data_path unet/vanilla` -o output
 
 Then on the output folder we get:
-- `results`: A text file with the epoch, step, and best f1 score achieved
+- `results`: A text file with the epoch, step, seconds per epoch,
+  and best f1 score achieved
 - `*-img.png`: A sample image from the validation set
 - `*-pred.png`: The prediction of the model for the sample image
 - `*-true.png`: The ground truth for the segmentation
