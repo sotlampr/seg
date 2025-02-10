@@ -1,7 +1,7 @@
 # seg: tools for evaluating binary semantic image segmentation models
 
 Features:
-  - 5 frameworks:
+  - 5+1 frameworks:
     - [torchvision](https://pytorch.org/vision/main/models.html)
     - [segmentation_models.pytorch](https://github.com/qubvel-org/segmentation_models.pytorch)
     - [Mask2Former](https://github.com/facebookresearch/Mask2Former)
