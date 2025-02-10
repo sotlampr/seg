@@ -28,8 +28,6 @@ import torch
 from torch import nn
 from torchvision.transforms.v2.functional import center_crop
 
-models = {"vanilla": None}
-
 
 class DownBlock(nn.Module):
     def __init__(self, in_channels):
@@ -92,6 +90,97 @@ class UpBlock(nn.Module):
         return out
 
 
+class UNetGN(nn.Module):
+    def __init__(self, im_channels=3):
+        super().__init__()
+        # input image is 572 by 572
+        # 3x3 relu conv with 64 kernels
+        self.conv_in = nn.Sequential(
+            nn.Conv2d(im_channels, 64, kernel_size=3, padding=1),
+            nn.ReLU(),
+            nn.GroupNorm(32, 64),
+            # now at 570 x 570 due to valid padding.
+            nn.Conv2d(64, 64, kernel_size=3, padding=1),
+            nn.ReLU(),
+            nn.GroupNorm(32, 64)
+            # now at 568 x 568, 64 channels
+        )
+        # need to keep track of output here for up phase.
+        """ This down block makes the following transformations.
+        to 284x284 with 64 channels
+        to 282x282 with 128 channels
+        to 280x280 with 128 channels
+        """
+        self.down1 = DownBlock(64)
+        # need to keep track of output here for up phase.
+        """ Makes following transformations
+        to 140x140 with 128 channels
+        to 138x138 with 256 channels
+        to 136x136 with 256 channels
+        """
+        self.down2 = DownBlock(128)
+        # need to keep track of output here for up phase
+
+        """ Makes following transformations
+        to 68x68 with 256 channels
+        to 66x66 with 512 channels
+        to 64x64 with 512 channels
+        """
+        self.down3 = DownBlock(256)
+        # need to keep track of output here for up phase
+
+        """ Makes following transformations
+        to 32x32 with 512 channels
+        to 30 x 30 with 1024 channels
+        to 28x28 with 1024 channels
+        """
+        self.down4 = DownBlock(512)
+
+        """ Makes following transformations
+            to is 56x56 with 512 channels (up and conv)
+            to is 56x56 with 1024 channels (concat)
+            to is 54x54 with 512 channels (conv)
+            to is 52x52 with 512 channels (conv)
+        """
+        self.up1 = UpBlock(1024)
+        self.up2 = UpBlock(512)
+        self.up3 = UpBlock(256)
+        self.up4 = UpBlock(128)
+        # output is now at 64x388x388
+        self.conv_out = nn.Sequential(
+            nn.Conv2d(64, 1, kernel_size=1, padding=1),
+            nn.ReLU(),
+            nn.GroupNorm(1, 1)
+        )
+        # output is now at 2x388x388
+        # each layer in the output represents a class 'probability'
+        # but these aren't really probabilities as the model is not
+        # calibrated.
+
+    def forward(self, x):
+        out1 = self.conv_in(x)
+        # (1, 64, 568, 568)
+        out2 = self.down1(out1)
+        # (1, 128, 280, 280)
+        out3 = self.down2(out2)
+        # (1, 256, 136, 136)
+        out4 = self.down3(out3)
+        # (1, 512, 64, 64)
+        out = self.down4(out4)
+        # (1, 1024, 28, 28)
+        out = self.up1(out, out4)
+        # (1, 512, 52, 52)
+        out = self.up2(out, out3)
+        # (1, 256, 100, 100)
+        out = self.up3(out, out2)
+        # (1, 128, 196, 196)
+        out = self.up4(out, out1)
+        # (1, 64, 388, 388)
+        out = self.conv_out(out)
+        # each layer in the output represents a class 'probability'
+        # but these aren't really probabilities as the model is not
+        # calibrated.
+        return out
 class UNetGNRes(nn.Module):
     def __init__(self, im_channels=3):
         super().__init__()
@@ -131,3 +220,9 @@ class UNetGNRes(nn.Module):
 def new(name, pretrained=False):
     assert not pretrained
     return torch.jit.script(UNetGNRes())
+
+
+models = {
+    "vanilla": UNetGN,
+    "root_painter": UNetGNRes
+}
