@@ -294,25 +294,6 @@ def f1_score(input, target):
     return tp2 / (tp2+fp+fn)
 
 
-def collate(minibatch):
-    imgs, masks = zip(*minibatch)
-    max_h = max(x.shape[1] for x in imgs)
-    max_w = max(x.shape[2] for x in imgs)
-    imgs = torch.stack([
-        TF.pad(
-            img, (max_w - img.size(2), max_h - img.size(1), 0, 0),
-            fill=IMAGENET_MIN
-        )
-        for img in imgs
-    ])
-    masks = torch.stack([
-        TF.pad(mask, (max_w - mask.size(2), max_h - mask.size(1), 0, 0))
-        for mask in masks
-    ])
-    print(imgs.size(), masks.size())
-    return imgs, masks
-
-
 if __name__ == "__main__":
     models = {f"{k.__name__}/{v}": (k, v) for k, v in all_models()}
 
@@ -342,13 +323,11 @@ if __name__ == "__main__":
     train_loader = DataLoader(
         train_dataset, batch_size=args.batch_size, shuffle=True,
         num_workers=args.num_workers, drop_last=True,
-        pin_memory=True, #collate_fn=collate#,
-        multiprocessing_context="fork"
+        pin_memory=True, multiprocessing_context="fork"
     )
     val_loader = DataLoader(
         eval_dataset, batch_size=args.batch_size, shuffle=False,
         num_workers=args.num_workers, pin_memory=True,
-#        collate_fn=collate,
         multiprocessing_context="fork"
     )
     module, model_name = models[args.model]
