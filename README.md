@@ -1,15 +1,21 @@
 # seg: tools for evaluating binary semantic image segmentation models
 
 Features:
-  - 1134 LOC and a 6-line requirements.txt file
+  - 5 frameworks:
+    - [torchvision](https://pytorch.org/vision/main/models.html)
+    - [segmentation_models.pytorch](https://github.com/qubvel-org/segmentation_models.pytorch)
+    - [Mask2Former](https://github.com/facebookresearch/Mask2Former)
+    - [segment-anything (SAM)](https://github.com/facebookresearch/segment-anything)
+    - [MobileSAM](https://github.com/ChaoningZhang/MobileSAM)
+    - [segmentation_of_roots_in_soil_with_unet](https://github.com/Abe404/segmentation_of_roots_in_soil_with_unet)
+  - Automatic mixed precision training
   - On-the-fly loading images from disk for training
   - Auto-patchification and some augmentation
+  - 876 LOC and a 6-line requirements.txt file
   - Almost 300 model \& backbone combinations
-  - SAM \& Mask2Former
-  - Automatic mixed precision training
 
 # Installation
-We need some custom steps wrt detectron and sam
+We need some custom steps wrt detectron and mask2former
 `./install.sh`
 
 Download the pretrained models
