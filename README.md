@@ -83,4 +83,4 @@ Every model file should define
  - A `models` dict with keys the name of each mode
  - A `new(name, pretrained: Bool)` function that returns a model
  - A model that takes a `(N x 3 x H x W)` image and returns a
-   `(N x 1 x H x W)´ prediction
+   `(N x 1 x H x W)` prediction
