@@ -14,6 +14,7 @@ import pickle
 
 import torch
 from torch import nn
+from torchvision.transforms.v2.functional import resize
 from detectron2.config import get_cfg
 from detectron2.projects.deeplab import add_deeplab_config
 
@@ -49,16 +50,22 @@ def get_url(model_name, weights_ext):
 
 
 class Model(nn.Module):
-    def __init__(self, model):
+    def __init__(self, model, upscale=False):
         super().__init__()
         self.model = torch.compile(model)
-        self.upscale = torch.compile(Upscaler())
+        if upscale:
+            self.upscale = torch.compile(Upscaler())
+        else:
+            self.upscale = False
 
     def forward(self, x):
         features = self.model.backbone(x)
         outputs = self.model.sem_seg_head(features)
         masks = outputs["pred_masks"]
-        return self.upscale(x, masks)
+        if self.upscale:
+            return self.upscale(x, masks)
+        else:
+            return resize(masks, x.shape[2:])
 
 
 def make_model(cfg_file, pretrained_weights=None):

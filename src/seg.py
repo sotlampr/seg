@@ -26,10 +26,11 @@ from torchvision import transforms as v2
 from torchvision.io import read_image, ImageReadMode
 import torchvision.transforms.v2.functional as TF
 
-import m2f, sam, unet, segmentation_pytorch, torchvision_models
-from common import IMAGENET_NORM
+import \
+    m2f, sam, unet, segmentation_pytorch, torchvision_models, mb_sam
+from common import IMAGENET_NORM, IMAGENET_MIN
 
-MODULES = [m2f, sam, unet, torchvision_models, segmentation_pytorch]
+MODULES = [m2f, sam, unet, torchvision_models, segmentation_pytorch, mb_sam]
 
 
 def all_models():
@@ -61,7 +62,7 @@ def train(
     last_update_step = 0
     epoch = 1
     global_step = 1
-    patience = 15*eval_frequency
+    patience = 20*eval_frequency
     model.train()
 
     def make_timer():

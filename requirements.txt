@@ -5,3 +5,4 @@ opencv-python
 git+https://github.com/facebookresearch/segment-anything
 segmentation-models-pytorch
 pytest
+git+https://github.com/ChaoningZhang/MobileSAM
