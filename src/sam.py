@@ -9,7 +9,7 @@ for more details.
 """
 import torch
 from torch import nn
-from torchvision.transforms.v2.functional import pad, center_crop
+from torchvision.transforms.v2.functional import pad, center_crop, resize
 
 import segment_anything
 
@@ -32,10 +32,13 @@ def get_url(model_id, weights_ext):
 
 
 class Model(nn.Module):
-    def __init__(self, model):
+    def __init__(self, model, upscale=False):
         super().__init__()
         self.model = torch.compile(model)
-        self.upscale = torch.compile(Upscaler())
+        if upscale:
+            self.upscale = torch.compile(Upscaler())
+        else:
+            self.upscale = False
 
     def forward(self, x):
         # Sam always needs 1024x1024 inputs
@@ -52,7 +55,18 @@ class Model(nn.Module):
             img_embed, self.model.prompt_encoder.get_dense_pe(),
             *prompt_embeds, False
         )
-        return self.upscale(x, center_crop(masks, (n//4 for n in x.shape[2:])))
+        if self.upscale:
+            return self.upscale(
+                x,
+                center_crop(masks, (n//4 for n in x.shape[2:]))
+                if pad_h or pad_w else masks
+            )
+        else:
+            return resize(
+                center_crop(masks, (n//4 for n in x.shape[2:]))
+                if pad_h or pad_w else masks,
+                x.shape[2:]
+            )
 
 
 def new(model_name, pretrained=False):
