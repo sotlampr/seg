@@ -47,6 +47,7 @@ def get_patches(input_shape, target_shape):
     else:
         for i in range(0, n1, n2):
             for j in range(0, m1, m2):
+                #yield i, j, min(n2, n1-i), min(m2, m1-j)
                 yield i, j, n2, m2
 
 
@@ -75,6 +76,7 @@ def train(
     tick = make_timer()
     while True:
         if epoch > epochs:
+            print()
             return
         train_loss = 0
         for step, (imgs, msks) in enumerate(train_loader, 1):
@@ -82,6 +84,7 @@ def train(
             msks = msks.to("cuda", non_blocking=True)
             with autocast("cuda", dtype=torch.float16, enabled=use_amp):
                 pred = model(imgs)
+                # print(imgs.size(), pred.size())
                 loss = dice_loss(pred, msks.float()) \
                     + F.binary_cross_entropy_with_logits(pred, msks.float())
             if loss.isnan():
@@ -156,8 +159,9 @@ def train(
                             msks[row].float()
                         ).save(f"{checkpoint_dir}/{row}-true.png")
                     with open(f"{checkpoint_dir}/results", "w") as fp:
+                        mem = torch.cuda.memory_reserved()/1024**3
                         print(
-                            f"{epoch}\t{global_step}\t{pe}\t{fscore}", file=fp
+                            f"{epoch}\t{global_step}\t{pe}\t{mem}\t{fscore}", file=fp
                         )
                 elif (global_step - last_update_step) > patience:
                     print("\t done")
@@ -290,6 +294,25 @@ def f1_score(input, target):
     return tp2 / (tp2+fp+fn)
 
 
+def collate(minibatch):
+    imgs, masks = zip(*minibatch)
+    max_h = max(x.shape[1] for x in imgs)
+    max_w = max(x.shape[2] for x in imgs)
+    imgs = torch.stack([
+        TF.pad(
+            img, (max_w - img.size(2), max_h - img.size(1), 0, 0),
+            fill=IMAGENET_MIN
+        )
+        for img in imgs
+    ])
+    masks = torch.stack([
+        TF.pad(mask, (max_w - mask.size(2), max_h - mask.size(1), 0, 0))
+        for mask in masks
+    ])
+    print(imgs.size(), masks.size())
+    return imgs, masks
+
+
 if __name__ == "__main__":
     models = {f"{k.__name__}/{v}": (k, v) for k, v in all_models()}
 
@@ -319,11 +342,13 @@ if __name__ == "__main__":
     train_loader = DataLoader(
         train_dataset, batch_size=args.batch_size, shuffle=True,
         num_workers=args.num_workers, drop_last=True,
-        pin_memory=True, multiprocessing_context="fork"
+        pin_memory=True, #collate_fn=collate#,
+        multiprocessing_context="fork"
     )
     val_loader = DataLoader(
         eval_dataset, batch_size=args.batch_size, shuffle=False,
         num_workers=args.num_workers, pin_memory=True,
+#        collate_fn=collate,
         multiprocessing_context="fork"
     )
     module, model_name = models[args.model]
@@ -344,9 +369,7 @@ if __name__ == "__main__":
         print()
         print("Received keyboard interrupt. bye!")
 
-    u, t = torch.cuda.mem_get_info()
-    print(
-        f"GPU {t/1024**3:.1f} total {u/1024**3:.1f} "
-        f"used {(t-u)/1024**3:.1f} free"
-    )
+    mem = torch.cuda.memory_reserved()
+    print(f"GPU: {mem/1024**3:.1f} GB reserved")
+
     sys.exit(0)
