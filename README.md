@@ -84,3 +84,45 @@ Every model file should define
  - A `new(name, pretrained: Bool)` function that returns a model
  - A model that takes a `(N x 3 x H x W)` image and returns a
    `(N x 1 x H x W)` prediction
+
+# Models
+```
+m2f/R101
+m2f/R50
+m2f/swin-base
+m2f/swin-small
+m2f/swin-tiny
+mb_sam/vit_t
+sam/vit-base
+sam/vit-huge
+sam/vit-large
+segmentation_pytorch/deeplabv3+-ENCODER
+segmentation_pytorch/deeplabv3-ENCODER
+segmentation_pytorch/linknet-ENCODER
+segmentation_pytorch/manet-ENCODER
+segmentation_pytorch/pan-ENCODER
+segmentation_pytorch/pspnet-ENCODER
+segmentation_pytorch/segformer-ENCODER
+segmentation_pytorch/unet++-ENCODER
+segmentation_pytorch/unet-ENCODER
+
+ENCODER:
+        densenet{121,161,169,201}
+        efficientnet-b{0..6}
+        inceptionv4
+        mobilenet_v2
+        mobileone_s{0..4}
+        resnet{18,50,101}
+        timm-efficientnet-b{0..6}
+        vgg{11,19}
+        xception
+
+torchvision_models/deeplabv3-mobilenet_v3_large
+torchvision_models/deeplabv3-resnet101
+torchvision_models/deeplabv3-resnet50
+torchvision_models/fcn-resnet101
+torchvision_models/fcn-resnet50
+torchvision_models/lraspp-mobilenet_v3_large
+unet/root_painter
+unet/vanilla
+```
