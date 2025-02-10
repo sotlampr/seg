@@ -61,6 +61,23 @@ Then in the output directory we get:
 - `*-true.png`: The ground truth for the segmentation
 - `checkpoint_best.pth`: The best model
 
+# Command-line options
+```
+options:
+  -h, --help            show this help message and exit
+  -C, --clip-gradients
+  -P, --pretrained
+  -a LEARNING_RATE, --learning-rate LEARNING_RATE
+  -b BATCH_SIZE, --batch-size BATCH_SIZE
+  -e EPOCHS, --epochs EPOCHS
+  -f EVAL_FREQUENCY, --eval-frequency EVAL_FREQUENCY
+  -j NUM_WORKERS, --num-workers NUM_WORKERS
+  -m, --mixed-precision
+  -o CHECKPOINT_DIR, --checkpoint-dir CHECKPOINT_DIR
+  -s SHAPE SHAPE, --shape SHAPE SHAPE
+  -w WARMUP_STEPS, --warmup-steps WARMUP_STEPS
+```
+
 # Developing
 Every model file should define
  - A `models` dict with keys the name of each mode
