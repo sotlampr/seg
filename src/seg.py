@@ -19,7 +19,7 @@ import time
 
 import torch
 from torch import nn
-from torch.amp import autocast, GradScaler
+from torch.amp import autocast
 import torch.nn.functional as F
 from torch.utils.data import DataLoader
 from torchvision import transforms as v2
@@ -56,7 +56,6 @@ def train(
     lr=1e-3, eval_frequency=80, warmup_steps=200, use_amp=False,
     clip_gradients=False
 ):
-    scaler = GradScaler(enabled=use_amp)
     optimizer = torch.optim.AdamW(model.parameters(), lr=lr*1e-2)
     lr_log = log10(lr)
     best_score = 0.
@@ -82,11 +81,10 @@ def train(
         for step, (imgs, msks) in enumerate(train_loader, 1):
             imgs = imgs.to("cuda", non_blocking=True)
             msks = msks.to("cuda", non_blocking=True)
-            with autocast("cuda", dtype=torch.float16, enabled=use_amp):
+            with autocast("cuda", dtype=torch.bfloat16, enabled=use_amp):
                 pred = model(imgs)
-                # print(imgs.size(), pred.size())
-                loss = dice_loss(pred, msks.float()) \
-                    + F.binary_cross_entropy_with_logits(pred, msks.float())
+                loss = dice_loss(pred, msks) \
+                    + F.binary_cross_entropy_with_logits(pred, msks)
             if loss.isnan():
                 print("  nan loss!!!")
                 continue
@@ -97,14 +95,10 @@ def train(
             )
 
             optimizer.zero_grad(set_to_none=True)
-            scaler.scale(loss).backward()
+            loss.backward()
             if clip_gradients:
-                scaler.unscale_(optimizer)
-                torch.nn.utils.clip_grad_norm_(
-                    model.parameters(), max_norm=1.0
-                )
-            scaler.step(optimizer)
-            scaler.update()
+                nn.utils.clip_grad_norm_(model.parameters(), max_norm=1.0)
+            optimizer.step()
 
             if global_step % eval_frequency == 0:
                 eval_loss = 0
@@ -115,7 +109,7 @@ def train(
                     imgs = imgs.to("cuda", non_blocking=True)
                     msks = msks.to("cuda", non_blocking=True)
                     with autocast(
-                        "cuda", dtype=torch.float16, enabled=use_amp
+                        "cuda", dtype=torch.bfloat16, enabled=use_amp
                     ):
                         with torch.inference_mode(), torch.no_grad():
                             pred = model(imgs)
