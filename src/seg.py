@@ -59,7 +59,8 @@ def get_patches(input_shape, target_shape):
 def train(
     model, train_loader, val_loader, checkpoint_dir, epochs,
     lr=1e-3, eval_frequency=80, warmup_steps=200, use_amp=False,
-    clip_gradients=False
+    clip_gradients=False, timeout=None, save_val_images=False,
+    extra_val_metrics=False
 ):
     optimizer = torch.optim.AdamW(model.parameters(), lr=lr*1e-2)
     lr_log = log10(lr)
@@ -70,14 +71,14 @@ def train(
     patience = 20*eval_frequency
     model.train()
 
-    def make_timer():
-        begin = time.time()
+    with open(f"{checkpoint_dir}/results", "a") as fp:
+        print(
+            "epoch", "step", "wall_duration",
+            "train_loss", "val_loss", "val_iou", "val_fscore",
+            sep="\t", file=fp
+        )
 
-        def tick(i):
-            return (time.time()-begin)/i
-        return tick
-
-    tick = make_timer()
+    begin = time.time()
     while True:
         if epoch > epochs:
             print()
@@ -108,7 +109,7 @@ def train(
             if global_step % eval_frequency == 0:
                 eval_loss = 0
                 iou = 0
-                fscore = 0
+                tps, fps, fns = 0, 0, 0
                 model.eval()
                 for i, (imgs, msks) in enumerate(val_loader):
                     imgs = imgs.to("cuda", non_blocking=True)
@@ -118,27 +119,39 @@ def train(
                     ):
                         with torch.inference_mode(), torch.no_grad():
                             pred = model(imgs)
-                            loss = dice_loss(pred, msks.float()) \
-                                + F.binary_cross_entropy_with_logits(
-                                    pred, msks.float()
-                                )
+                            if extra_val_metrics:
+                                loss = dice_loss(pred, msks) \
+                                    + F.binary_cross_entropy_with_logits(
+                                        pred, msks
+                                    )
 
-                    eval_loss += loss.item()
-                    iou += get_iou(pred, msks).item()
-                    f = f1_score(pred, msks)
-                    if not torch.isnan(f):
-                        fscore += f.item()
+                    if extra_val_metrics:
+                        eval_loss += loss.item()
+                        iou += get_iou(pred, msks).item()
+                    tp, fp, fn = tp_fp_fn(pred, msks)
+                    tps += tp
+                    fps += fp
+                    fns += fn
 
-                eval_loss /= (i + 1)
-                iou /= (i + 1)
-                fscore /= (i + 1)
-                pe = tick(epoch)
+                if extra_val_metrics:
+                    eval_loss /= len(val_loader)
+                    iou /= len(val_loader)
+                fscore = f1_score_(tps, fps, fns).item()
+                duration = time.time()-begin
 
                 print(
-                    f"\r{epoch:3d} {global_step:6d} {pe:3.1f}s "
+                    f"\r{epoch:3d} {global_step:6d} {duration:3.1f}s "
                     f"train: {train_loss/step:.03f} val: {eval_loss:.03f} "
                     f"iou: {iou:.03f} f1: {fscore:.03f} ", end=""
                 )
+
+                row = (
+                    epoch, global_step, duration, train_loss/step,
+                    eval_loss, iou, fscore
+                )
+                with open(f"{checkpoint_dir}/results", "a") as fp:
+                    print(*row, sep="\t", file=fp)
+
                 if fscore > best_score:
                     best_score = fscore
                     last_update_step = global_step
@@ -147,21 +160,21 @@ def train(
                         model.state_dict(),
                         checkpoint_dir + "/checkpoint_best.pth"
                     )
-                    for row in range(imgs.size(0)):
-                        TF.to_pil_image(
-                            imgs[row]
-                        ).save(f"{checkpoint_dir}/{row}-img.png")
-                        TF.to_pil_image(
-                            F.sigmoid(pred[row])
-                        ).save(f"{checkpoint_dir}/{row}-pred.png")
-                        TF.to_pil_image(
-                            msks[row].float()
-                        ).save(f"{checkpoint_dir}/{row}-true.png")
-                    with open(f"{checkpoint_dir}/results", "w") as fp:
-                        mem = torch.cuda.memory_reserved()/1024**3
-                        print(
-                            f"{epoch}\t{global_step}\t{pe}\t{mem}\t{fscore}", file=fp
-                        )
+                    if save_val_images:
+                        for k in range(max(imgs.size(0), 3)):
+                            TF.to_pil_image(
+                                imgs[k]
+                            ).save(f"{checkpoint_dir}/{k}-img.png")
+                            TF.to_pil_image(
+                                F.sigmoid(pred[k])
+                            ).save(f"{checkpoint_dir}/{k}-pred.png")
+                            TF.to_pil_image(
+                                msks[k]
+                            ).save(f"{checkpoint_dir}/{k}-true.png")
+
+                    with open(f"{checkpoint_dir}/best", "a") as fp:
+                        print(*row, sep="\t", file=fp)
+
                 elif (global_step - last_update_step) > patience:
                     print("\t done")
                     return
@@ -169,6 +182,10 @@ def train(
                     print()
 
                 model.train()
+
+                if timeout is not None and time.time() - begin > timeout:
+                    print("\t timeout reached.")
+                    return
 
             if global_step <= warmup_steps:
                 lr = 10**(lr_log-2*(1-(global_step/warmup_steps)))
@@ -314,24 +331,33 @@ def intersection_union(input, target):
     return intersection, union
 
 
-def dice_loss(input, target, eps=torch.finfo(torch.float32).eps):
+def dice_loss(input, target, eps=torch.finfo(torch.bfloat16).eps):
     intersection, union = intersection_union(F.sigmoid(input), target)
-    return 1 - ((2 * intersection) / (union + eps))
+    return (1 - ((2 * intersection) + eps) / (union + eps))
 
 
-def get_iou(input, target, eps=torch.finfo(torch.float32).eps):
+def get_iou(input, target, eps=torch.finfo(torch.bfloat16).eps):
     intersection, union = intersection_union(input >= 0, target)
-    return intersection / (union + eps)
+    return (intersection + eps) / (union + eps)
 
 
-def f1_score(input, target):
+def tp_fp_fn(input, target):
     """Expects input as logits"""
     input = (input >= 0).view(-1)
     target = target.bool().view(-1)
-    tp2 = 2*(input & target).sum()
+    tp = (input & target).sum()
     fp = (input & ~target).sum()
     fn = (~input & target).sum()
-    return tp2 / (tp2+fp+fn)
+    return tp, fp, fn
+
+
+def f1_score_(tp, fp, fn):
+    tp *= 2
+    return tp / (tp+fp+fn)
+
+
+def f1_score(input, target):
+    return f1_score_(*tp_fp_fn(input, target))
 
 
 if __name__ == "__main__":
@@ -340,8 +366,6 @@ if __name__ == "__main__":
     parser = argparse.ArgumentParser()
     parser.add_argument("data_path")
     parser.add_argument("model", choices=models)
-    parser.add_argument("-C", "--clip-gradients", action="store_true")
-    parser.add_argument("-P", "--pretrained", action="store_true")
     parser.add_argument("-a", "--learning-rate", type=float, default=1e-4)
     parser.add_argument("-b", "--batch-size", type=int, default=2)
     parser.add_argument("-e", "--epochs", type=int, default=80)
@@ -352,7 +376,12 @@ if __name__ == "__main__":
     parser.add_argument(
         "-s", "--shape", type=int, nargs=2, default=(1024, 1024)
     )
+    parser.add_argument("-t", "--timeout", type=int)
     parser.add_argument("-w", "--warmup-steps", type=int, default=400)
+    parser.add_argument("-C", "--clip-gradients", action="store_true")
+    parser.add_argument("-P", "--pretrained", action="store_true")
+    parser.add_argument("-S", "--save-val-images", action="store_true")
+    parser.add_argument("-X", "--extra-val-metrics", action="store_true")
     args = parser.parse_args()
 
     torch.backends.cudnn.benchmark = True
@@ -363,12 +392,13 @@ if __name__ == "__main__":
     train_loader = DataLoader(
         train_dataset, batch_size=args.batch_size, shuffle=True,
         num_workers=args.num_workers, drop_last=True,
-        pin_memory=True, multiprocessing_context="fork"
+        pin_memory=True, multiprocessing_context="fork",
+        prefetch_factor=1
     )
     val_loader = DataLoader(
         eval_dataset, batch_size=args.batch_size, shuffle=False,
         num_workers=args.num_workers, pin_memory=True,
-        multiprocessing_context="fork"
+        multiprocessing_context="fork", prefetch_factor=1
     )
     module, model_name = models[args.model]
     model = module.new(model_name, pretrained=args.pretrained).to("cuda")
@@ -382,7 +412,10 @@ if __name__ == "__main__":
             eval_frequency=args.eval_frequency/args.batch_size,
             warmup_steps=args.warmup_steps/args.batch_size,
             use_amp=args.mixed_precision,
-            clip_gradients=args.clip_gradients
+            clip_gradients=args.clip_gradients,
+            timeout=args.timeout,
+            save_val_images=args.save_val_images,
+            extra_val_metrics=args.extra_val_metrics
         )
     except KeyboardInterrupt:
         print()
@@ -390,5 +423,4 @@ if __name__ == "__main__":
 
     mem = torch.cuda.memory_reserved()
     print(f"GPU: {mem/1024**3:.1f} GB reserved")
-
     sys.exit(0)
