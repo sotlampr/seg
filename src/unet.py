@@ -29,7 +29,7 @@ from torch import nn
 from torchvision.transforms.v2.functional import center_crop
 
 
-class DownBlock(nn.Module):
+class DownBlockRes(nn.Module):
     def __init__(self, in_channels):
         super().__init__()
         self.pool = nn.MaxPool2d(2)
@@ -59,7 +59,7 @@ class DownBlock(nn.Module):
         return out4 + out1
 
 
-class UpBlock(nn.Module):
+class UpBlockRes(nn.Module):
     def __init__(self, in_channels):
         super().__init__()
         self.conv1 = nn.Sequential(
@@ -85,6 +85,67 @@ class UpBlock(nn.Module):
         out = self.conv1(x)
         cropped = center_crop(down_out, out.shape[-2:])
         out = cropped + out  # residual
+        out = self.conv2(out)
+        out = self.conv3(out)
+        return out
+
+
+class DownBlock(nn.Module):
+    def __init__(self, in_channels):
+        super().__init__()
+        # need to keep track of output here for up phase.
+        self.pool = nn.MaxPool2d(2)
+        self.conv1 = nn.Sequential(
+            nn.Conv2d(in_channels, in_channels*2, kernel_size=3, padding=1),
+            nn.ReLU(),
+            nn.GroupNorm(32, in_channels*2)
+        )
+        self.conv2 = nn.Sequential(
+            nn.Conv2d(in_channels*2, in_channels*2, kernel_size=3, padding=1),
+            nn.ReLU(),
+            nn.GroupNorm(32, in_channels*2)
+        )
+
+    def forward(self, x):
+        out = self.pool(x)
+        out = self.conv1(out)
+        out = self.conv2(out)
+        return out
+
+
+class UpBlock(nn.Module):
+    def __init__(self, in_channels):
+        super().__init__()
+        half_channels = in_channels // 2
+
+        # Now a 2x2 convolution that halves the feature channels
+        # this also up-samples
+        self.conv1 = nn.Sequential(
+            nn.ConvTranspose2d(in_channels, half_channels,
+                               kernel_size=2, stride=2, padding=0),
+            nn.ReLU(),
+            nn.GroupNorm(32, half_channels)
+        )
+        # 2 layers of 3x3 conv + relu
+        # still uses full channels as half channels
+        # is added from down side output
+        self.conv2 = nn.Sequential(
+            nn.Conv2d(in_channels, half_channels,
+                      kernel_size=3, padding=1),
+            nn.ReLU(),
+            nn.GroupNorm(32, half_channels)
+        )
+        self.conv3 = nn.Sequential(
+            nn.Conv2d(half_channels, half_channels,
+                      kernel_size=3, padding=1),
+            nn.ReLU(),
+            nn.GroupNorm(32, half_channels)
+        )
+
+    def forward(self, x, down_out):
+        out = self.conv1(x)
+        cropped = center_crop(down_out, out.shape[-2:])
+        out = torch.cat([cropped, out], dim=1)
         out = self.conv2(out)
         out = self.conv3(out)
         return out
@@ -148,7 +209,7 @@ class UNetGN(nn.Module):
         self.up4 = UpBlock(128)
         # output is now at 64x388x388
         self.conv_out = nn.Sequential(
-            nn.Conv2d(64, 1, kernel_size=1, padding=1),
+            nn.Conv2d(64, 1, kernel_size=1, padding=0),
             nn.ReLU(),
             nn.GroupNorm(1, 1)
         )
@@ -181,6 +242,8 @@ class UNetGN(nn.Module):
         # but these aren't really probabilities as the model is not
         # calibrated.
         return out
+
+
 class UNetGNRes(nn.Module):
     def __init__(self, im_channels=3):
         super().__init__()
@@ -192,15 +255,15 @@ class UNetGNRes(nn.Module):
             nn.ReLU(),
             nn.GroupNorm(32, 64)
         )
-        self.down1 = DownBlock(64)
-        self.down2 = DownBlock(64)
-        self.down3 = DownBlock(64)
-        self.down4 = DownBlock(64)
-        self.up1 = UpBlock(64)
-        self.up2 = UpBlock(64)
-        self.up3 = UpBlock(64)
-        self.up4 = UpBlock(64)
-        self.up5 = UpBlock(64)
+        self.down1 = DownBlockRes(64)
+        self.down2 = DownBlockRes(64)
+        self.down3 = DownBlockRes(64)
+        self.down4 = DownBlockRes(64)
+        self.up1 = UpBlockRes(64)
+        self.up2 = UpBlockRes(64)
+        self.up3 = UpBlockRes(64)
+        self.up4 = UpBlockRes(64)
+        self.up5 = UpBlockRes(64)
         self.conv_out = nn.Conv2d(64, 1, kernel_size=1, padding=0)
 
     def forward(self, x):
