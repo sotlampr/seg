@@ -217,12 +217,13 @@ class UNetGNRes(nn.Module):
         return out
 
 
-def new(name, pretrained=False):
-    assert not pretrained
-    return torch.jit.script(UNetGNRes())
-
-
 models = {
     "vanilla": UNetGN,
     "root_painter": UNetGNRes
 }
+
+
+def new(name, pretrained=False, optimize=True):
+    assert not pretrained
+    cls = models[name]
+    return torch.compile(cls()) if optimize else cls()

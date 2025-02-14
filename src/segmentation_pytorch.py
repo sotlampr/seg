@@ -90,25 +90,14 @@ models = {
 }
 
 
-class ModelShim(torch.nn.Module):
-    def __init__(self, model):
-        super().__init__()
-        self.model = torch.jit.script(model)
-
-    def forward(self, x):
-        out = self.model(x)
-        if out.shape[2:] != x.shape[2:]:
-            out = F.interpolate(out, x.shape[2:])
-        return out
-
-
-def new(name, pretrained=False):
+def new(name, pretrained=False, optimize=True):
     model_name, encoder_name = name.split("-", maxsplit=1)
     model_cls = models[name]
-    return model_cls(
+    model = model_cls(
         encoder_name=encoder_name,
         encoder_weights="imagenet" if pretrained else None,
         in_channels=3,
         classes=1,
         activation=None
     )
+    return torch.compile(model) if optimize else model

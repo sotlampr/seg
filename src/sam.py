@@ -32,11 +32,12 @@ def get_url(model_id, weights_ext):
 
 
 class Model(nn.Module):
-    def __init__(self, model, upscale=False):
+    def __init__(self, model, upscale=False, optimize=True):
         super().__init__()
-        self.model = torch.compile(model)
+        self.model = torch.compile(model) if optimize else model
         if upscale:
-            self.upscale = torch.compile(Upscaler())
+            self.upscale = \
+                torch.compile(Upscaler()) if optimize else Upscaler()
         else:
             self.upscale = False
 
@@ -69,7 +70,7 @@ class Model(nn.Module):
             )
 
 
-def new(model_name, pretrained=False):
+def new(model_name, pretrained=False, optimize=True):
     model_id, weights_ext = models[model_name]
     fn = getattr(segment_anything, f"build_sam_{model_id}")
     if pretrained:
@@ -77,4 +78,4 @@ def new(model_name, pretrained=False):
     else:
         checkpoint = None
     check_for_file(checkpoint, get_url, model_id, weights_ext)
-    return Model(fn(checkpoint=checkpoint))
+    return Model(fn(checkpoint=checkpoint), optimize=optimize)

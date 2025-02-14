@@ -29,9 +29,9 @@ models = {
 
 
 class Model(torch.nn.Module):
-    def __init__(self, model):
+    def __init__(self, model, optimize=True):
         super().__init__()
-        self.model = torch.compile(model)
+        self.model = torch.compile(model) if optimize else model
         clfcls = model.classifier.__class__
         if clfcls.__name__ == 'LRASPPHead':
             self.model.classifier = clfcls(40, 960, 1, 128)
@@ -46,7 +46,7 @@ class Model(torch.nn.Module):
         return out
 
 
-def new(name, pretrained=False):
+def new(name, pretrained=False, optimize=True):
     model_name, encoder_name = name.split("-")
     if pretrained:
         weights = models[name]
@@ -54,4 +54,4 @@ def new(name, pretrained=False):
         weights = None
 
     model_cls = getattr(seg_models, model_name + "_" + encoder_name)
-    return Model(model_cls(weights=weights))
+    return Model(model_cls(weights=weights), optimize)

@@ -50,11 +50,11 @@ def get_url(model_name, weights_ext):
 
 
 class Model(nn.Module):
-    def __init__(self, model, upscale=False):
+    def __init__(self, model, upscale=False, optimize=True):
         super().__init__()
-        self.model = torch.compile(model)
+        self.model = torch.compile(model) if optimize else model
         if upscale:
-            self.upscale = torch.compile(Upscaler())
+            self.upscale = torch.compile(Upscaler()) if optimize else Upscaler()
         else:
             self.upscale = False
 
@@ -100,7 +100,7 @@ def make_model(cfg_file, pretrained_weights=None):
     return model
 
 
-def new(model_name, pretrained=False):
+def new(model_name, pretrained=False, optimize=True):
     model_id, weights_ext = models[model_name]
 
     model_cfg = f"{model_id}.yaml"
@@ -112,4 +112,4 @@ def new(model_name, pretrained=False):
     else:
         pretrained_weights = None
     check_for_file(pretrained_weights, get_url, model_id, weights_ext)
-    return Model(make_model(model_cfg, pretrained_weights))
+    return Model(make_model(model_cfg, pretrained_weights), optimize=optimize)
