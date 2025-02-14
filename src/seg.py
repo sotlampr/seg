@@ -29,8 +29,9 @@ from torchvision.transforms import InterpolationMode
 from torchvision.transforms.autoaugment import _apply_op as _apply_augment_op
 
 import \
-    m2f, sam, unet, segmentation_pytorch, torchvision_models, mb_sam
-from common import IMAGENET_NORM, IMAGENET_MIN
+    m2f, sam, unet, segmentation_pytorch, torchvision_models, mb_sam  # noqa: E401, E501
+from common import IMAGENET_NORM
+
 
 MODULES = [m2f, sam, unet, torchvision_models, segmentation_pytorch, mb_sam]
 
