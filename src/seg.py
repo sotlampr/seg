@@ -25,6 +25,8 @@ from torch.utils.data import DataLoader
 from torchvision import transforms as v2
 from torchvision.io import read_image, ImageReadMode
 import torchvision.transforms.v2.functional as TF
+from torchvision.transforms import InterpolationMode
+from torchvision.transforms.autoaugment import _apply_op as _apply_augment_op
 
 import \
     m2f, sam, unet, segmentation_pytorch, torchvision_models, mb_sam
@@ -40,14 +42,17 @@ def all_models():
 
 
 def get_patches(input_shape, target_shape):
-    """Get non overlapping patches in (top, bottom, height, width) format"""
+    """Get overlapping patches in (top, bottom, height, width) format.
+    The last patch is overlapping with the second-to-last.
+    """
     (m1, n1), (m2, n2) = input_shape, target_shape
     if m1 <= m2 and n1 <= n2:
         yield 0, 0, *(x + 32 - (x % 32) for x in input_shape)
     else:
         for i in range(0, n1, n2):
             for j in range(0, m1, m2):
-                #yield i, j, min(n2, n1-i), min(m2, m1-j)
+                i -= max(0, i+n2-n1)
+                j -= max(0, j+m2-m1)
                 yield i, j, n2, m2
 
 
@@ -175,6 +180,70 @@ def train(
         epoch += 1
 
 
+class TrivialAugment(nn.Module):
+    def __init__(
+        self, num_bins=31, interpolation_mode=InterpolationMode.NEAREST,
+        fill=None
+    ):
+        super().__init__()
+        self.fill = fill
+        self.interpolation_mode = interpolation_mode
+        # op_name: (magnitudes, signed, spatial)
+        self.augmentation_space = {
+            "Identity": (torch.tensor(0.0), False, False),
+            "Brightness": (torch.linspace(0.0, 0.99, num_bins), True, False),
+            "Color": (torch.linspace(0.0, 0.99, num_bins), True, False),
+            "Contrast": (torch.linspace(0.0, 0.99, num_bins), True, False),
+            "Sharpness": (torch.linspace(0.0, 0.99, num_bins), True, False),
+            "Posterize": (
+                8 - (
+                    torch.arange(num_bins) / ((num_bins - 1) / 6)
+                ).round().int(),
+                False, False
+            ),
+            "Solarize": (
+                torch.linspace(255.0, 0.0, num_bins), False, False
+            ),
+            "AutoContrast": (torch.tensor(0.0), False, False),
+            "Equalize": (torch.tensor(0.0), False, False),
+            "ShearX": (torch.linspace(0.0, 0.99, num_bins), True, True),
+            "ShearY": (torch.linspace(0.0, 0.99, num_bins), True, True),
+            "TranslateX": (torch.linspace(0.0, 32.0, num_bins), True, True),
+            "TranslateY": (torch.linspace(0.0, 32.0, num_bins), True, True),
+            "Rotate": (torch.linspace(0.0, 135.0, num_bins), True, True),
+        }
+        self.augmentation_keys = list(self.augmentation_space.keys())
+        self.num_augmentations = len(self.augmentation_keys)
+
+    def apply(self, img, op_name: str, magnitude: float):
+        return _apply_augment_op(
+            img, op_name, magnitude,
+            interpolation=self.interpolation_mode,
+            fill=self.fill
+        )
+
+    def forward(self, img, mask):
+        op_index = int(torch.randint(self.num_augmentations, (1,)).item())
+        op_name = self.augmentation_keys[op_index]
+        magnitudes, signed, spatial = self.augmentation_space[op_name]
+        magnitude = (
+            float(magnitudes[torch.randint(
+                len(magnitudes), (1,), dtype=torch.long
+            )].item())
+            if magnitudes.ndim > 0
+            else 0.0
+        )
+        if signed and torch.randint(2, (1,)):
+            magnitude *= -1.0
+
+        if spatial:
+            aug = self.apply(torch.cat([img, mask]), op_name, magnitude)
+            img, mask = aug[:3], aug[-1:]
+        else:
+            img = self.apply(img, op_name, magnitude)
+        return img, mask
+
+
 class PlainDataset(torch.utils.data.Dataset):
     def __init__(
         self, img_fnames, mask_fnames, shape=(1024, 1024), augment=False
@@ -182,29 +251,7 @@ class PlainDataset(torch.utils.data.Dataset):
         self.normalize = v2.Normalize(**IMAGENET_NORM)
 
         if augment:
-            self.augment = torch.jit.script(nn.Sequential(
-                v2.RandomApply(torch.nn.ModuleList([
-                    v2.ColorJitter(
-                        brightness=0.3, contrast=0.3, saturation=0.3, hue=0.2
-                    )]), p=2/3
-                ),
-                v2.RandomApply(torch.nn.ModuleList([v2.Grayscale(3)]), p=5e-2),
-                v2.RandomInvert(p=2.5e-2),
-            ))
-            self.augment_spatial = torch.jit.script(nn.Sequential(
-                v2.RandomApply(torch.nn.ModuleList([
-                        v2.RandomRotation(15),
-                    ]), p=1/3
-                ),
-                v2.RandomApply(torch.nn.ModuleList([
-                        v2.RandomPerspective(distortion_scale=0.4, p=1.0),
-                    ]), p=1/3
-                ),
-                v2.RandomHorizontalFlip(p=0.5),
-                v2.RandomApply(torch.nn.ModuleList([
-                    v2.ElasticTransform(alpha=75.)]), p=1/3
-                )
-            ))
+            self.augment = torch.jit.script(TrivialAugment())
         else:
             self.augment = None
 
@@ -226,18 +273,17 @@ class PlainDataset(torch.utils.data.Dataset):
 
         img = read_image(img_fname)
         img = TF.crop(img, *crop_indices)
-        img = TF.convert_image_dtype(img, torch.float)
 
         mask = read_image(mask_fname, ImageReadMode.GRAY)
         mask = TF.crop(mask, *crop_indices)
-        mask = (mask.to(torch.uint8) > 0).float()
+        mask = (mask.to(torch.uint8) > 0).to(torch.uint8)
 
         if self.augment is not None:
-            img = self.augment(img)
-            aug = self.augment_spatial(torch.cat([img, mask]))
-            img, mask = aug[:3], aug[-1:]
-        img = self.normalize(img)
+            img, mask = self.augment(img, mask)
 
+        img = TF.convert_image_dtype(img, torch.float32)
+        img = self.normalize(img)
+        mask = mask.to(torch.float32)
         return img, mask
 
     def __len__(self):
