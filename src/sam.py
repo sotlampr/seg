@@ -13,7 +13,7 @@ from torchvision.transforms.v2.functional import pad, center_crop, resize
 
 import segment_anything
 
-from common import Upscaler, IMAGENET_MIN
+from common import IMAGENET_MIN
 from utils import check_for_file, get_pretrained_fname
 
 
@@ -32,14 +32,9 @@ def get_url(model_id, weights_ext):
 
 
 class Model(nn.Module):
-    def __init__(self, model, upscale=False, optimize=True):
+    def __init__(self, model, optimize=True):
         super().__init__()
         self.model = torch.compile(model) if optimize else model
-        if upscale:
-            self.upscale = \
-                torch.compile(Upscaler()) if optimize else Upscaler()
-        else:
-            self.upscale = False
 
     def forward(self, x):
         # Sam always needs 1024x1024 inputs
@@ -56,18 +51,11 @@ class Model(nn.Module):
             img_embed, self.model.prompt_encoder.get_dense_pe(),
             *prompt_embeds, False
         )
-        if self.upscale:
-            return self.upscale(
-                x,
-                center_crop(masks, (n//4 for n in x.shape[2:]))
-                if pad_h or pad_w else masks
-            )
-        else:
-            return resize(
-                center_crop(masks, (n//4 for n in x.shape[2:]))
-                if pad_h or pad_w else masks,
-                x.shape[2:]
-            )
+        return resize(
+            center_crop(masks, (n//4 for n in x.shape[2:]))
+            if pad_h or pad_w else masks,
+            x.shape[2:]
+        )
 
 
 def new(model_name, pretrained=False, optimize=True):

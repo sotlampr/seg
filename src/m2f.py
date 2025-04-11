@@ -7,7 +7,6 @@ file in the root directory of the project or <https://www.gnu.org/licenses/>
 for more details.
 
 """
-# flake8: noqa: E402
 import os
 import sys
 import pickle
@@ -18,13 +17,12 @@ from torchvision.transforms.v2.functional import resize
 from detectron2.config import get_cfg
 from detectron2.projects.deeplab import add_deeplab_config
 
-sys.path.insert(0, "../Mask2Former")
-import mask2former
-from mask2former import MaskFormer, add_maskformer2_config
-sys.path.remove("../Mask2Former")
-
-from common import Upscaler
 from utils import check_for_file, get_pretrained_fname
+
+sys.path.insert(0, "../Mask2Former")
+import mask2former  # noqa: E402
+from mask2former import MaskFormer, add_maskformer2_config  # noqa: E402
+sys.path.remove("../Mask2Former")
 
 
 upstream_url = \
@@ -50,22 +48,15 @@ def get_url(model_name, weights_ext):
 
 
 class Model(nn.Module):
-    def __init__(self, model, upscale=False, optimize=True):
+    def __init__(self, model, optimize=True):
         super().__init__()
         self.model = torch.compile(model) if optimize else model
-        if upscale:
-            self.upscale = torch.compile(Upscaler()) if optimize else Upscaler()
-        else:
-            self.upscale = False
 
     def forward(self, x):
         features = self.model.backbone(x)
         outputs = self.model.sem_seg_head(features)
         masks = outputs["pred_masks"]
-        if self.upscale:
-            return self.upscale(x, masks)
-        else:
-            return resize(masks, x.shape[2:])
+        return resize(masks, x.shape[2:])
 
 
 def make_model(cfg_file, pretrained_weights=None):
