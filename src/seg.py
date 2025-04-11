@@ -14,9 +14,12 @@ import glob
 from itertools import repeat
 from math import log10
 import os
+import re
 import sys
 import time
 
+import numpy as np
+from PIL import Image
 import torch
 from torch import nn
 from torch.amp import autocast
@@ -29,11 +32,16 @@ from torchvision.transforms import InterpolationMode
 from torchvision.transforms.autoaugment import _apply_op as _apply_augment_op
 
 import \
-    m2f, sam, unet, segmentation_pytorch, torchvision_models, mb_sam  # noqa: E401, E501
+    m2f, mb_sam, rootnav, sam, segmentation_pytorch, segroot, \
+    torchvision_models, unet, unet_valid  # noqa: F401 E401
+
 from common import IMAGENET_NORM
 
 
-MODULES = [m2f, sam, unet, torchvision_models, segmentation_pytorch, mb_sam]
+MODULES = [
+    m2f, mb_sam, rootnav, sam, segmentation_pytorch, segroot,
+    torchvision_models, unet, unet_valid
+]
 
 
 def all_models():
@@ -50,11 +58,11 @@ def get_patches(input_shape, target_shape):
     if m1 <= m2 and n1 <= n2:
         yield 0, 0, *(x + 32 - (x % 32) for x in input_shape)
     else:
-        for i in range(0, n1, n2):
-            for j in range(0, m1, m2):
-                i -= max(0, i+n2-n1)
-                j -= max(0, j+m2-m1)
-                yield i, j, n2, m2
+        for i in range(0, m1, m2):
+            for j in range(0, n1, n2):
+                i -= max(0, i+m2-m1)
+                j -= max(0, j+n2-n1)
+                yield i, j, m2, n2
 
 
 def train(
@@ -72,7 +80,7 @@ def train(
     patience = 20*eval_frequency
     model.train()
 
-    with open(f"{checkpoint_dir}/results", "a") as fp:
+    with open(f"{checkpoint_dir}/results", "w") as fp:
         print(
             "epoch", "step", "wall_duration",
             "train_loss", "val_loss", "val_iou", "val_fscore",
@@ -88,13 +96,21 @@ def train(
         for step, (imgs, msks) in enumerate(train_loader, 1):
             imgs = imgs.to("cuda", non_blocking=True)
             msks = msks.to("cuda", non_blocking=True)
+
+            if not msks.any():
+                continue
+
             with autocast("cuda", dtype=torch.bfloat16, enabled=use_amp):
                 pred = model(imgs)
+                if pred.shape[2:] != imgs.shape[2:]:
+                    msks = TF.center_crop(msks, pred.shape[2:])
                 loss = dice_loss(pred, msks) \
                     + F.binary_cross_entropy_with_logits(pred, msks)
+
             if loss.isnan():
                 print("  nan loss!!!")
                 continue
+
             train_loss += loss.item()
             print(
                 f"\r{epoch:3d} {global_step:6d} {train_loss/step:.03f} "
@@ -120,6 +136,8 @@ def train(
                     ):
                         with torch.inference_mode(), torch.no_grad():
                             pred = model(imgs)
+                            if pred.shape[2:] != imgs.shape[2:]:
+                                msks = TF.center_crop(msks, pred.shape[2:])
                             if extra_val_metrics:
                                 loss = dice_loss(pred, msks) \
                                     + F.binary_cross_entropy_with_logits(
@@ -173,7 +191,7 @@ def train(
                                 msks[k]
                             ).save(f"{checkpoint_dir}/{k}-true.png")
 
-                    with open(f"{checkpoint_dir}/best", "a") as fp:
+                    with open(f"{checkpoint_dir}/best", "w") as fp:
                         print(*row, sep="\t", file=fp)
 
                 elif (global_step - last_update_step) > patience:
@@ -262,14 +280,63 @@ class TrivialAugment(nn.Module):
         return img, mask
 
 
+class OurAugment(nn.Module):
+    def __init__(self):
+        super().__init__()
+        self.augment = nn.Sequential(
+            v2.RandomApply(torch.nn.ModuleList([
+                v2.ColorJitter(
+                    brightness=0.3, contrast=0.3, saturation=0.3, hue=0.2
+                )]), p=2/3
+            ),
+            v2.RandomApply(torch.nn.ModuleList([v2.Grayscale(3)]), p=5e-2),
+            v2.RandomInvert(p=2.5e-2),
+        )
+        self.augment_spatial = nn.Sequential(
+            v2.RandomApply(torch.nn.ModuleList([
+                    v2.RandomRotation(15),
+                ]), p=1/3
+            ),
+            v2.RandomApply(torch.nn.ModuleList([
+                    v2.RandomPerspective(distortion_scale=0.4, p=1.0),
+                ]), p=1/3
+            ),
+            v2.RandomHorizontalFlip(p=0.5),
+            v2.RandomApply(torch.nn.ModuleList([
+                v2.ElasticTransform(alpha=75.)]), p=1/3
+            )
+        )
+
+    def forward(self, img, mask):
+        img = self.augment(img)
+        aug = self.augment_spatial(torch.cat([img, mask]))
+        img, mask = aug[:3], aug[-1:]
+        return img, mask
+
+
+def get_res(fp):
+    sig = fp.read(4)
+    if sig == b'\x89PNG':
+        fp.read(12)
+        width = int.from_bytes(fp.read(4))
+        height = int.from_bytes(fp.read(4))
+    elif sig.startswith(b'\xff\xd8'):
+        x = re.search(b"\xff\xc0...(..)(..)", fp.read())
+        assert x is not None
+        height, width = (int.from_bytes(y) for y in x.groups())
+    else:
+        raise NotImplementedError(f"signature: {sig}")
+    return (height, width)
+
+
 class PlainDataset(torch.utils.data.Dataset):
     def __init__(
-        self, img_fnames, mask_fnames, shape=(1024, 1024), augment=False
+        self, img_fnames, mask_fnames, shape=(1024, 1024), train=False
     ):
         self.normalize = v2.Normalize(**IMAGENET_NORM)
 
-        if augment:
-            self.augment = torch.jit.script(TrivialAugment())
+        if train:
+            self.augment = torch.jit.script(OurAugment())
         else:
             self.augment = None
 
@@ -277,13 +344,11 @@ class PlainDataset(torch.utils.data.Dataset):
         self.indices = []
         for (img_fname, mask_fname) in zip(img_fnames, mask_fnames):
             with open(img_fname, "rb") as fp:
-                sig = fp.read(4)
-                assert sig == b'\x89PNG'
-                fp.read(12)
-                img_shape = (*map(int.from_bytes, (fp.read(4), fp.read(4))),)
+                this_shape = get_res(fp)
+
                 self.indices.extend(zip(
                     repeat(img_fname), repeat(mask_fname),
-                    get_patches(img_shape, shape)
+                    get_patches(this_shape, shape)
                 ))
 
     def __getitem__(self, idx):
@@ -318,8 +383,8 @@ def read_data(path, shape):
         PlainDataset(*map(
             partial(get_img_fnames, path, subset),
             ("photos", "annotations")
-        ), shape, augment)
-        for subset, augment in (("train", True), ("val", False))
+        ), shape, subset == "train")
+        for subset in ("train", "val")
     )
 
 
@@ -361,6 +426,15 @@ def f1_score(input, target):
     return f1_score_(*tp_fp_fn(input, target))
 
 
+def load_model(model_id, pretrained=False, optimize=True, models=None):
+    if models is None:
+        models = {f"{k.__name__}/{v}": (k, v) for k, v in all_models()}
+    module, model_name = models[model_id]
+    return module.new(
+        model_name, pretrained=pretrained, optimize=optimize
+    )
+
+
 if __name__ == "__main__":
     models = {f"{k.__name__}/{v}": (k, v) for k, v in all_models()}
 
@@ -369,7 +443,7 @@ if __name__ == "__main__":
     parser.add_argument("model", choices=models)
     parser.add_argument("-a", "--learning-rate", type=float, default=1e-4)
     parser.add_argument("-b", "--batch-size", type=int, default=2)
-    parser.add_argument("-e", "--epochs", type=int, default=80)
+    parser.add_argument("-e", "--epochs", type=int, default=1000)
     parser.add_argument("-f", "--eval-frequency", type=int, default=200)
     parser.add_argument("-j", "--num-workers", type=int, default=8)
     parser.add_argument("-m", "--mixed-precision", action="store_true")
@@ -380,29 +454,36 @@ if __name__ == "__main__":
     parser.add_argument("-t", "--timeout", type=int)
     parser.add_argument("-w", "--warmup-steps", type=int, default=400)
     parser.add_argument("-C", "--clip-gradients", action="store_true")
+    parser.add_argument("-N", "--no-optimizations", action="store_true")
     parser.add_argument("-P", "--pretrained", action="store_true")
     parser.add_argument("-S", "--save-val-images", action="store_true")
     parser.add_argument("-X", "--extra-val-metrics", action="store_true")
+    parser.add_argument("-Z", default="")
     args = parser.parse_args()
 
     torch.backends.cudnn.benchmark = True
+    torch.use_deterministic_algorithms(False)
     torch.set_float32_matmul_precision("high")
 
     train_dataset, eval_dataset = read_data(args.data_path, args.shape)
+    print(f"#train: {len(train_dataset)} #val: {len(eval_dataset)}")
 
     train_loader = DataLoader(
         train_dataset, batch_size=args.batch_size, shuffle=True,
-        num_workers=args.num_workers, drop_last=True,
-        pin_memory=True, multiprocessing_context="fork",
-        prefetch_factor=1
+        num_workers=args.num_workers, pin_memory=True,
+        multiprocessing_context="fork", prefetch_factor=1
     )
     val_loader = DataLoader(
         eval_dataset, batch_size=args.batch_size, shuffle=False,
         num_workers=args.num_workers, pin_memory=True,
         multiprocessing_context="fork", prefetch_factor=1
     )
-    module, model_name = models[args.model]
-    model = module.new(model_name, pretrained=args.pretrained).to("cuda")
+
+    model = load_model(
+        args.model, pretrained=args.pretrained,
+        optimize=not args.no_optimizations, models=models
+    ).to("cuda")
+    print(len(train_loader.dataset))
 
     if not os.path.exists(args.checkpoint_dir):
         os.mkdir(args.checkpoint_dir)
@@ -410,8 +491,8 @@ if __name__ == "__main__":
         train(
             model, train_loader, val_loader, args.checkpoint_dir, args.epochs,
             lr=args.learning_rate,
-            eval_frequency=args.eval_frequency/args.batch_size,
-            warmup_steps=args.warmup_steps/args.batch_size,
+            eval_frequency=args.eval_frequency//args.batch_size,
+            warmup_steps=args.warmup_steps//args.batch_size,
             use_amp=args.mixed_precision,
             clip_gradients=args.clip_gradients,
             timeout=args.timeout,
