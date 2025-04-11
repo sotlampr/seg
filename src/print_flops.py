@@ -15,9 +15,13 @@ import torch
 from calflops import calculate_flops
 
 import \
-    m2f, sam, unet, segmentation_pytorch, torchvision_models, mb_sam
+    m2f, mb_sam, rootnav, sam, segmentation_pytorch, segroot, \
+    torchvision_models, unet, unet_valid  # noqa: F401 E401
 
-MODULES = [m2f, sam, unet, torchvision_models, segmentation_pytorch, mb_sam]
+MODULES = [
+    m2f, mb_sam, rootnav, sam, segmentation_pytorch, segroot,
+    torchvision_models, unet, unet_valid
+]
 
 
 def all_models():
@@ -26,12 +30,13 @@ def all_models():
             yield (module, model)
 
 
-def analyze_model(model, x, y):
+def analyze_model(model, input_shape):
     flops, macs, params = calculate_flops(
-        model=model, args=[x], output_as_string=False,
+        model=model, input_shape=input_shape,
+        output_as_string=False,
         print_results=False
     )
-    print(f"{flops/1024**4:.2f} TFLOPS")
+    print(flops)
 
 
 if __name__ == "__main__":
@@ -40,7 +45,6 @@ if __name__ == "__main__":
     parser = argparse.ArgumentParser()
     parser.add_argument("model", choices=models)
     parser.add_argument("-b", "--batch-size", type=int, default=2)
-    parser.add_argument("-m", "--mixed-precision", action="store_true")
     parser.add_argument(
         "-s", "--shape", type=int, nargs=2, default=(1024, 1024)
     )
@@ -48,7 +52,6 @@ if __name__ == "__main__":
 
     module, model_name = models[args.model]
     model = module.new(model_name, pretrained=False, optimize=False)
-    model_input = torch.randn(args.batch_size, 3, *args.shape)
-    model_output = torch.randn(args.batch_size, 1, *args.shape)
-    res = analyze_model(model, model_input, model_output)
+    input_shape = (args.batch_size, 3, *args.shape)
+    res = analyze_model(model, input_shape)
     sys.exit(0)
