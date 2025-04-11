@@ -11,17 +11,16 @@ import torch
 import torch.nn.functional as F
 import segmentation_models_pytorch as smp
 
-# (model_class, non_dilated, supports_mit)
+# (model_class, non_dilated)
 base_models = {
-    "deeplabv3": (smp.DeepLabV3, False, True),
-    "deeplabv3+": (smp.DeepLabV3Plus, False, True),
-    "pan": (smp.PAN, False, True),
-    "manet": (smp.MAnet, True, True),
-    "pspnet": (smp.PSPNet, True, True),
-    "segformer": (smp.Segformer, True, True),
-    "unet": (smp.Unet, True, True),
-    "linknet": (smp.Linknet, True, False),
-    "unet++": (smp.UnetPlusPlus, True, False),
+    "deeplabv3": (smp.DeepLabV3, False),
+    "deeplabv3+": (smp.DeepLabV3Plus, False),
+    "pan": (smp.PAN, True),
+    "manet": (smp.MAnet, True),
+    "pspnet": (smp.PSPNet, True),
+    "unet": (smp.Unet, True),
+    "linknet": (smp.Linknet, True),
+    "unet++": (smp.UnetPlusPlus, True),
 }
 
 
@@ -62,42 +61,57 @@ non_dilated_encoders = (
     "inceptionv4",  # 41M
 )
 
-mit_encoders = (
-    "mit_b0",  # 3M
-    "mit_b1",  # 13M
-    "mit_b2",  # 24M
-    "mit_b3",  # 44M
+
+segformer_models = (
+    ("mit_b0", "smp-hub/segformer-b2-1024x1024-city-160k"),  # 3M
+    ("mit_b1", "smp-hub/segformer-b2-1024x1024-city-160k"),  # 13M
+    ("mit_b2", "smp-hub/segformer-b2-1024x1024-city-160k"),  # 24M
+    ("mit_b3", "smp-hub/segformer-b3-1024x1024-city-160k")  # 44M
 )
 
 models = {
     **{
         f"{name}-{enc}": cls
-        for name, (cls, _, _) in base_models.items()
+        for name, (cls, _) in base_models.items()
         for enc in dilated_encoders
     },
     **{
         f"{name}-{enc}": cls
-        for name, (cls, non_dilated, _) in base_models.items()
-        for enc in non_dilated_encoders
-        if non_dilated
+        for name, (cls, non_dilated) in base_models.items()
+        for enc in non_dilated_encoders if non_dilated
     },
     **{
-        f"{name}-{enc}": cls
-        for name, (cls, _, supports_mit) in base_models.items()
-        for enc in mit_encoders
-        if supports_mit
+        f"segformer-{enc}": value
+        for enc, value in segformer_models
+
     }
+}
+
+
+default_kwargs = {
+    "in_channels": 3, "classes": 1, "activation": None
 }
 
 
 def new(name, pretrained=False, optimize=True):
     model_name, encoder_name = name.split("-", maxsplit=1)
-    model_cls = models[name]
-    model = model_cls(
-        encoder_name=encoder_name,
-        encoder_weights="imagenet" if pretrained else None,
-        in_channels=3,
-        classes=1,
-        activation=None
-    )
-    return torch.compile(model) if optimize else model
+    if model_name == "segformer":
+        if pretrained:
+            pt_name = models[name]
+            model = smp.Segformer.from_pretrained(pt_name)
+            model.segmentation_head[0] = torch.nn.Conv2d(
+                model.segmentation_head[0].in_channels, 1, 1
+            )
+            model.classes = 1
+        else:
+            model = smp.Segformer(encoder_name, **default_kwargs)
+    else:
+        model_cls = models[name]
+        model = model_cls(
+            encoder_name=encoder_name,
+            encoder_weights="imagenet" if pretrained else None,
+            **default_kwargs
+        )
+        if optimize:
+            model = torch.compile(model)
+    return model
