@@ -15,11 +15,11 @@ import torch
 from calflops import calculate_flops
 
 import \
-    m2f, mb_sam, rootnav, sam, segmentation_pytorch, segroot, \
+    m2f, mb_sam, rootnav, sam, samII, segmentation_pytorch, segroot, \
     torchvision_models, unet, unet_valid  # noqa: F401 E401
 
 MODULES = [
-    m2f, mb_sam, rootnav, sam, segmentation_pytorch, segroot,
+    m2f, mb_sam, rootnav, sam, samII, segmentation_pytorch, segroot,
     torchvision_models, unet, unet_valid
 ]
 

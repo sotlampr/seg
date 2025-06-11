@@ -32,14 +32,14 @@ from torchvision.transforms import InterpolationMode
 from torchvision.transforms.autoaugment import _apply_op as _apply_augment_op
 
 import \
-    m2f, mb_sam, rootnav, sam, segmentation_pytorch, segroot, \
+    m2f, mb_sam, rootnav, sam, samII, segmentation_pytorch, segroot, \
     torchvision_models, unet, unet_valid  # noqa: F401 E401
 
 from common import IMAGENET_NORM
 
 
 MODULES = [
-    m2f, mb_sam, rootnav, sam, segmentation_pytorch, segroot,
+    m2f, mb_sam, rootnav, sam, samII, segmentation_pytorch, segroot,
     torchvision_models, unet, unet_valid
 ]
 
