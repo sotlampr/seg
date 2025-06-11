@@ -512,6 +512,25 @@ if __name__ == "__main__":
 
     if not os.path.exists(args.checkpoint_dir):
         os.mkdir(args.checkpoint_dir)
+
+    with open(f"{args.checkpoint_dir}/config", "w") as fp:
+        for k, v in (
+            ("batch_size", args.batch_size),
+            ("clip_gradents", args.clip_gradients),
+            ("eval_frequency", eval_freq),
+            ("learning_rate", args.learning_rate),
+            ("mixed_precision", args.mixed_precision),
+            ("num_epochs", args.epochs),
+            ("num_train", len(train_loader.dataset)),
+            ("num_val", len(val_loader.dataset)),
+            ("optimize", not args.no_optimizations),
+            ("pretrained", args.pretrained),
+            ("shape", args.shape),
+            ("timeout", args.timeout),
+            ("warmup_steps", warmup_st),
+        ):
+            print(k, v, sep="\t", file=fp)
+
     try:
         train(
             model, train_loader, val_loader, args.checkpoint_dir, args.epochs,
