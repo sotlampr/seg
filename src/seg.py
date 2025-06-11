@@ -460,7 +460,7 @@ if __name__ == "__main__":
     parser.add_argument("-a", "--learning-rate", type=float, default=1e-4)
     parser.add_argument("-b", "--batch-size", type=int, default=2)
     parser.add_argument("-e", "--epochs", type=int, default=1000)
-    parser.add_argument("-f", "--eval-frequency", type=int, default=200)
+    parser.add_argument("-f", "--eval-frequency", type=int)
     parser.add_argument("-j", "--num-workers", type=int, default=8)
     parser.add_argument("-m", "--mixed-precision", action="store_true")
     parser.add_argument("-o", "--checkpoint-dir", default="../out")
@@ -468,7 +468,8 @@ if __name__ == "__main__":
         "-s", "--shape", type=int, nargs=2, default=(1024, 1024)
     )
     parser.add_argument("-t", "--timeout", type=int)
-    parser.add_argument("-w", "--warmup-steps", type=int, default=400)
+    parser.add_argument("-w", "--warmup-steps-mul", type=int, default=2)
+    parser.add_argument("-A", "--sparse-annotations", action="store_true")
     parser.add_argument("-C", "--clip-gradients", action="store_true")
     parser.add_argument("-N", "--no-optimizations", action="store_true")
     parser.add_argument("-P", "--pretrained", action="store_true")
@@ -481,25 +482,33 @@ if __name__ == "__main__":
     torch.use_deterministic_algorithms(False)
     torch.set_float32_matmul_precision("high")
 
-    train_dataset, eval_dataset = read_data(args.data_path, args.shape)
+    train_dataset, eval_dataset = read_data(
+        args.data_path, args.shape, args.sparse_annotations)
     print(f"#train: {len(train_dataset)} #val: {len(eval_dataset)}")
 
     train_loader = DataLoader(
         train_dataset, batch_size=args.batch_size, shuffle=True,
         num_workers=args.num_workers, pin_memory=True,
-        multiprocessing_context="fork", prefetch_factor=1
+        multiprocessing_context="fork" if args.num_workers else None,
+        prefetch_factor=1 if args.num_workers else None
     )
     val_loader = DataLoader(
         eval_dataset, batch_size=args.batch_size, shuffle=False,
         num_workers=args.num_workers, pin_memory=True,
-        multiprocessing_context="fork", prefetch_factor=1
+        multiprocessing_context="fork" if args.num_workers else None,
+        prefetch_factor=1 if args.num_workers else None
     )
 
     model = load_model(
         args.model, pretrained=args.pretrained,
         optimize=not args.no_optimizations, models=models
     ).to("cuda")
-    print(len(train_loader.dataset))
+
+    if not args.eval_frequency:
+        args.eval_frequency = len(train_loader.dataset)
+
+    eval_freq = args.eval_frequency // args.batch_size
+    warmup_st = args.warmup_steps_mul * eval_freq
 
     if not os.path.exists(args.checkpoint_dir):
         os.mkdir(args.checkpoint_dir)
@@ -507,13 +516,14 @@ if __name__ == "__main__":
         train(
             model, train_loader, val_loader, args.checkpoint_dir, args.epochs,
             lr=args.learning_rate,
-            eval_frequency=args.eval_frequency//args.batch_size,
-            warmup_steps=args.warmup_steps//args.batch_size,
+            eval_frequency=eval_freq,
+            warmup_steps=warmup_st,
             use_amp=args.mixed_precision,
             clip_gradients=args.clip_gradients,
             timeout=args.timeout,
             save_val_images=args.save_val_images,
-            extra_val_metrics=args.extra_val_metrics
+            extra_val_metrics=args.extra_val_metrics,
+            sparse_annotations=args.sparse_annotations
         )
     except KeyboardInterrupt:
         print()
