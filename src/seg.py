@@ -69,7 +69,7 @@ def train(
     model, train_loader, val_loader, checkpoint_dir, epochs,
     lr=1e-3, eval_frequency=80, warmup_steps=200, use_amp=False,
     clip_gradients=False, timeout=None, save_val_images=False,
-    extra_val_metrics=False
+    extra_val_metrics=False, sparse_annotations=False
 ):
     optimizer = torch.optim.AdamW(model.parameters(), lr=lr*1e-2)
     lr_log = log10(lr)
@@ -104,6 +104,10 @@ def train(
                 pred = model(imgs)
                 if pred.shape[2:] != imgs.shape[2:]:
                     msks = TF.center_crop(msks, pred.shape[2:])
+                if sparse_annotations:
+                    keep = msks[:, :2].any(1)  # either red or green
+                    pred = pred[keep.unsqueeze(1)]
+                    msks = msks[:, 0][keep]
                 loss = dice_loss(pred, msks) \
                     + F.binary_cross_entropy_with_logits(pred, msks)
 
@@ -138,6 +142,12 @@ def train(
                             pred = model(imgs)
                             if pred.shape[2:] != imgs.shape[2:]:
                                 msks = TF.center_crop(msks, pred.shape[2:])
+
+                            if sparse_annotations:
+                                keep = msks[:, :2].any(1)
+                                pred = pred[keep.unsqueeze(1)]
+                                msks = msks[:, 0][keep]
+
                             if extra_val_metrics:
                                 loss = dice_loss(pred, msks) \
                                     + F.binary_cross_entropy_with_logits(
@@ -310,7 +320,7 @@ class OurAugment(nn.Module):
     def forward(self, img, mask):
         img = self.augment(img)
         aug = self.augment_spatial(torch.cat([img, mask]))
-        img, mask = aug[:3], aug[-1:]
+        img, mask = aug[:3], aug[3:]
         return img, mask
 
 
@@ -331,7 +341,8 @@ def get_res(fp):
 
 class PlainDataset(torch.utils.data.Dataset):
     def __init__(
-        self, img_fnames, mask_fnames, shape=(1024, 1024), train=False
+        self, img_fnames, mask_fnames, shape=(1024, 1024),
+        sparse_annotations=False, train=False
     ):
         self.normalize = v2.Normalize(**IMAGENET_NORM)
 
@@ -351,13 +362,18 @@ class PlainDataset(torch.utils.data.Dataset):
                     get_patches(this_shape, shape)
                 ))
 
+        if sparse_annotations:
+            self.mask_read_mode = ImageReadMode.RGB
+        else:
+            self.mask_read_mode = ImageReadMode.GRAY
+
     def __getitem__(self, idx):
         img_fname, mask_fname, crop_indices = self.indices[idx]
 
         img = read_image(img_fname)
         img = TF.crop(img, *crop_indices)
 
-        mask = read_image(mask_fname, ImageReadMode.GRAY)
+        mask = read_image(mask_fname, self.mask_read_mode)
         mask = TF.crop(mask, *crop_indices)
         mask = (mask.to(torch.uint8) > 0).to(torch.uint8)
 
@@ -378,12 +394,12 @@ def get_img_fnames(base, subset, kind):
     return sorted(glob.glob(f"{path}/*"))
 
 
-def read_data(path, shape):
+def read_data(path, shape, sparse_annotations):
     return (
         PlainDataset(*map(
             partial(get_img_fnames, path, subset),
             ("photos", "annotations")
-        ), shape, subset == "train")
+        ), shape, sparse_annotations, subset == "train")
         for subset in ("train", "val")
     )
 
