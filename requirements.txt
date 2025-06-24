@@ -1,4 +1,4 @@
-torch
+torch==2.5.1
 torchvision
 # From detectron2
 opencv-python
@@ -7,4 +7,4 @@ segmentation-models-pytorch
 pytest
 git+https://github.com/ChaoningZhang/MobileSAM
 thop
-https://github.com/facebookresearch/sam2.git
+git+https://github.com/facebookresearch/sam2.git

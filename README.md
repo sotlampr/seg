@@ -15,15 +15,19 @@ Features:
   - Almost 300 model \& backbone combinations
 
 # Installation
+Some of the included packages have different requirements. E.g. in an Ubuntu box,
+one will need g++ and python3-dev.
+
+**IMPORTANT** Some Mask2Former custom ops require torch == 2.5.1
+
 We need some custom steps wrt detectron and mask2former
 `./install.sh`
 
 Download the pretrained models
 `./download_pretrained.sh`
 
-Run the tests
-`./make_test_images.sh TEST_DATA_DIR`
-`pytest -v`
+Download the datasets
+`cd data; for f in *_import.py; do ./$f; done`
 
 # Usage
 The data folder should contain a "train" and "val" directory, each containing an

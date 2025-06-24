@@ -5,6 +5,11 @@
 # version 3 as published by the Free Software Foundation apply. See the LICENSE
 # file in the root directory of the project or <https://www.gnu.org/licenses/>
 # for more details.
+set -e
+
+pip install --upgrade pip setuptools wheel
+pip install -r requirements.txt
+
 echo "$(tput bold)===> Installing detectron2$(tput sgr0)"
 if pip freeze | grep -q detectron2 >/dev/null; then
   echo "$(tput bold)=====> Already installed$(tput sgr0)"
@@ -39,5 +44,4 @@ if test -d ./SegRoot; then
   echo "$(tput bold)=====> Already installed$(tput sgr0)"
 else
   git clone https://github.com/wtwtwt0330/SegRoot
-  pip install -r RootNav-2.0/inference/requirements.txt
 fi
