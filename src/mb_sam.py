@@ -21,16 +21,13 @@ from utils import check_for_file, get_pretrained_fname
 
 
 models = {
-    "vit_t": "mobile_sam.pt",
-    "vit_t-resizeconcat": "mobile_sam.pt",
-    "vit_t-conv": "mobile_sam.pt",
-    "vit_t-convconcat": "mobile_sam.pt"
+    "vit_t": ("mobile_sam.pt",)
 }
 
 url = "https://drive.google.com/file/d/1dE-YAG-1mFCBmao2rHDp0n-PP4eH7SjE/view"
 
 
-def get_url(model_id, weights_ext):
+def get_url(model_id, weights_ext=None):
     return url
 
 
@@ -62,7 +59,7 @@ class Model(nn.Module):
 
 
 def new(model_name, pretrained=False, optimize=True):
-    weights_fname = models[model_name]
+    weights_fname, _ = models[model_name]
     if pretrained:
         checkpoint = get_pretrained_fname(weights_fname)
     else:

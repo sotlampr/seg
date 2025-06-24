@@ -26,7 +26,7 @@ models = {
 }
 
 
-def get_url(chkpt, rev):
+def get_url(rev, chkpt, cid):
     return f"{upstream_url}/{rev}/{chkpt}"
 
 
@@ -94,7 +94,7 @@ def new(model_name, pretrained=False, optimize=True):
     rev, chkpt, cid = models[model_name]
     if pretrained:
         chkpt = get_pretrained_fname(chkpt.split("/")[-1])
-        check_for_file(chkpt, get_url, chkpt, rev)
+        check_for_file(chkpt, get_url, rev, chkpt, cid)
     model = build_sam2(
         f"configs/sam2.1/sam2.1_hiera_{cid}.yaml",
         ckpt_path=get_pretrained_fname(chkpt) if pretrained else None
