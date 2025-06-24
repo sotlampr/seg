@@ -69,7 +69,7 @@ def train(
     model, train_loader, val_loader, checkpoint_dir, epochs,
     lr=1e-3, eval_frequency=80, warmup_steps=200, use_amp=False,
     clip_gradients=False, timeout=None, save_val_images=False,
-    extra_val_metrics=False, sparse_annotations=False
+    patience=20, extra_val_metrics=False, sparse_annotations=False
 ):
     optimizer = torch.optim.AdamW(model.parameters(), lr=lr*1e-2)
     lr_log = log10(lr)
@@ -77,7 +77,7 @@ def train(
     last_update_step = 0
     epoch = 1
     global_step = 1
-    patience = 20*eval_frequency
+    patience = patience * eval_frequency
     model.train()
 
     with open(f"{checkpoint_dir}/results", "w") as fp:
@@ -463,6 +463,7 @@ if __name__ == "__main__":
     parser.add_argument("-f", "--eval-frequency", type=int)
     parser.add_argument("-j", "--num-workers", type=int, default=8)
     parser.add_argument("-m", "--mixed-precision", action="store_true")
+    parser.add_argument("-p", "--patience", type=int, default=20)
     parser.add_argument("-o", "--checkpoint-dir", default="../out")
     parser.add_argument(
         "-s", "--shape", type=int, nargs=2, default=(1024, 1024)
@@ -524,6 +525,7 @@ if __name__ == "__main__":
             ("num_train", len(train_loader.dataset)),
             ("num_val", len(val_loader.dataset)),
             ("optimize", not args.no_optimizations),
+            ("patience", args.patience),
             ("pretrained", args.pretrained),
             ("shape", args.shape),
             ("timeout", args.timeout),
@@ -540,6 +542,7 @@ if __name__ == "__main__":
             use_amp=args.mixed_precision,
             clip_gradients=args.clip_gradients,
             timeout=args.timeout,
+            patience=args.patience,
             save_val_images=args.save_val_images,
             extra_val_metrics=args.extra_val_metrics,
             sparse_annotations=args.sparse_annotations
