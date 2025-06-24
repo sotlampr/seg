@@ -11,13 +11,13 @@ import re
 
 from utils import (
     check_equal_annotations_photos,
-    download_to_stream,
+    download,
     make_directories,
-    as_png
 )
 
 # NAME = "grassland"
 URL = "https://datadryad.org/downloads/file_stream/1319529"
+FNAME = "PRMI_official.zip"
 
 # make_directories(NAME)
 
@@ -41,7 +41,7 @@ for name in dataset_names:
 
 with tempfile.TemporaryFile("w+b") as fo:
     print("Downloading...")
-    download_to_stream(URL, fo, 9296)
+    download(URL, FNAME, fo, 9296)
     print("Extracting images & annotations", end="", flush=True)
     with zipfile.ZipFile(fo) as zf:
         for entry in zf.filelist:
@@ -55,9 +55,6 @@ with tempfile.TemporaryFile("w+b") as fo:
                 print("\r", out, sep="", end="", flush=True)
 
                 with open(out, "wb") as f:
-                    #if filetype == "jpg":
-                    #    as_png(io.BytesIO(zf.read(entry.filename)), f)
-                    #else:
                     f.write(zf.read(entry.filename))
 
 print()

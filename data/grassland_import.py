@@ -11,18 +11,19 @@ import re
 
 from utils import (
     check_equal_annotations_photos,
-    download_to_stream,
+    download,
     make_directories
 )
 
 NAME = "grassland"
 URL = "https://figshare.com/ndownloader/articles/20440497/versions/2"
+FNAME= "20440497.zip"
 
 make_directories(NAME)
 
 
 with tempfile.TemporaryFile("w+b") as fo:
-    download_to_stream(URL, fo, 957)
+    download(URL, FNAME, fo, 957)
     print("Extracting images & annotations", end="", flush=True)
     with zipfile.ZipFile(fo) as zf:
         # open nested zip in-memory

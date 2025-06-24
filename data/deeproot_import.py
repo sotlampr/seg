@@ -17,8 +17,7 @@ import re
 
 from utils import (
     check_equal_annotations_photos,
-    download_to_stream,
-    download_debug,
+    download,
     make_directories,
     zimg_to_disk
 )
@@ -27,6 +26,7 @@ from utils import (
 NAME_ANN = "deeproot_ann"
 NAME_SEG = "deeproot_seg"
 URL = "https://zenodo.org/api/records/15213661/files-archive"
+FNAME = "files-archive.zip"
 
 make_directories(NAME_ANN)
 make_directories(NAME_SEG)
@@ -42,7 +42,7 @@ ct = "annotations"
 
 with tempfile.TemporaryFile("w+b") as fo:
     # download_to_stream(URL, fo, 1127)
-    download_debug("files-archive.zip", fo, 1127)
+    download(URL, FNAME, fo, 1127)
     print("Extracting images & annotations", end="", flush=True)
     with zipfile.ZipFile(fo) as zf:
         # open nested zip in-memory

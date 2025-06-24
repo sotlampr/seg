@@ -2,8 +2,6 @@ import os
 import time
 import urllib.request
 
-from PIL import Image
-
 
 def download_to_stream(url, stream, size_in_mb):
     # download to stream file by 10MB per chunk
@@ -60,6 +58,13 @@ def download_debug(fname, stream, size_in_mb):
         print()
 
 
+def download(url, fname, stream, size_in_mb):
+    if os.path.exists(fname):
+        download_debug(fname, stream, size_in_mb)
+    else:
+        download_to_stream(url, stream, size_in_mb)
+
+
 def make_directories(dataset_name):
     for subset in ("train", "val", "test"):
         os.makedirs(f"{dataset_name}/{subset}/annotations", exist_ok=False)
@@ -72,11 +77,6 @@ def check_equal_annotations_photos(dataset_name):
         im = len(os.listdir(f"{dataset_name}/{subset}/photos"))
         assert an == im
         print(f"{subset}: {an}")
-
-
-def as_png(fi, fo):
-    img = Image.open(fi)
-    img.save(fo, format="png")
 
 
 def zimg_to_disk(zf, obj, *path):
