@@ -92,8 +92,9 @@ def train(
     while True and state[0] == "running":
         state = ("running", "training")
         if epoch > epochs:
+            state = ("done", "epoch limit reached")
             print()
-            return
+            break
         train_loss = 0
         for step, (imgs, msks) in enumerate(train_loader, 1):
             imgs = imgs.to("cuda", non_blocking=True)
@@ -216,83 +217,17 @@ def train(
 
                 if timeout is not None and time.time() - begin > timeout:
                     print("\t timeout reached.")
-                    if last_update_step == 0:
-                        state = ("done", "not_converged")
-                    else:
-                        state = ("done", "converged")
+                    state = ("done", "timeout reached")
+                    break
 
             if global_step <= warmup_steps:
                 lr = 10**(lr_log-2*(1-(global_step/warmup_steps)))
                 for param_group in optimizer.param_groups:
                     param_group["lr"] = lr
-                print(f"  LR is NOW {param_group['lr']:.03g}", end="    ")
             global_step += 1
         train_loss = 0
         epoch += 1
     return state
-
-class TrivialAugment(nn.Module):
-    def __init__(
-        self, num_bins=31, interpolation_mode=InterpolationMode.NEAREST,
-        fill=None
-    ):
-        super().__init__()
-        self.fill = fill
-        self.interpolation_mode = interpolation_mode
-        # op_name: (magnitudes, signed, spatial)
-        self.augmentation_space = {
-            "Identity": (torch.tensor(0.0), False, False),
-            "Brightness": (torch.linspace(0.0, 0.99, num_bins), True, False),
-            "Color": (torch.linspace(0.0, 0.99, num_bins), True, False),
-            "Contrast": (torch.linspace(0.0, 0.99, num_bins), True, False),
-            "Sharpness": (torch.linspace(0.0, 0.99, num_bins), True, False),
-            "Posterize": (
-                8 - (
-                    torch.arange(num_bins) / ((num_bins - 1) / 6)
-                ).round().int(),
-                False, False
-            ),
-            "Solarize": (
-                torch.linspace(255.0, 0.0, num_bins), False, False
-            ),
-            "AutoContrast": (torch.tensor(0.0), False, False),
-            "Equalize": (torch.tensor(0.0), False, False),
-            "ShearX": (torch.linspace(0.0, 0.99, num_bins), True, True),
-            "ShearY": (torch.linspace(0.0, 0.99, num_bins), True, True),
-            "TranslateX": (torch.linspace(0.0, 32.0, num_bins), True, True),
-            "TranslateY": (torch.linspace(0.0, 32.0, num_bins), True, True),
-            "Rotate": (torch.linspace(0.0, 135.0, num_bins), True, True),
-        }
-        self.augmentation_keys = list(self.augmentation_space.keys())
-        self.num_augmentations = len(self.augmentation_keys)
-
-    def apply(self, img, op_name: str, magnitude: float):
-        return _apply_augment_op(
-            img, op_name, magnitude,
-            interpolation=self.interpolation_mode,
-            fill=self.fill
-        )
-
-    def forward(self, img, mask):
-        op_index = int(torch.randint(self.num_augmentations, (1,)).item())
-        op_name = self.augmentation_keys[op_index]
-        magnitudes, signed, spatial = self.augmentation_space[op_name]
-        magnitude = (
-            float(magnitudes[torch.randint(
-                len(magnitudes), (1,), dtype=torch.long
-            )].item())
-            if magnitudes.ndim > 0
-            else 0.0
-        )
-        if signed and torch.randint(2, (1,)):
-            magnitude *= -1.0
-
-        if spatial:
-            aug = self.apply(torch.cat([img, mask]), op_name, magnitude)
-            img, mask = aug[:3], aug[-1:]
-        else:
-            img = self.apply(img, op_name, magnitude)
-        return img, mask
 
 
 class OurAugment(nn.Module):
@@ -560,6 +495,6 @@ if __name__ == "__main__":
     mem = torch.cuda.memory_reserved()
     print(f"STATUS: {status}: {reason}")
     print(f"GPU: {mem/1024**3:.1f} GB reserved")
-    if reason != "converged":
-        sys.exit(41)
+    if status != "done":
+        sys.exit(1)
     sys.exit(0)
