@@ -79,6 +79,7 @@ def train(
     global_step = 1
     patience = patience * eval_frequency
     model.train()
+    state = ("running", "initializing")
 
     with open(f"{checkpoint_dir}/results", "w") as fp:
         print(
@@ -88,7 +89,8 @@ def train(
         )
 
     begin = time.time()
-    while True:
+    while True and state[0] == "running":
+        state = ("running", "training")
         if epoch > epochs:
             print()
             return
@@ -97,35 +99,34 @@ def train(
             imgs = imgs.to("cuda", non_blocking=True)
             msks = msks.to("cuda", non_blocking=True)
 
-            if not msks.any():
-                continue
+            if msks.any():
+                with autocast("cuda", dtype=torch.bfloat16, enabled=use_amp):
+                    pred = model(imgs)
+                    if pred.shape[2:] != imgs.shape[2:]:
+                        msks = TF.center_crop(msks, pred.shape[2:])
+                    if sparse_annotations:
+                        keep = msks[:, :2].any(1)  # either red or green
+                        pred = pred[keep.unsqueeze(1)]
+                        msks = msks[:, 0][keep]
+                    loss = dice_loss(pred, msks) \
+                        + F.binary_cross_entropy_with_logits(pred, msks)
 
-            with autocast("cuda", dtype=torch.bfloat16, enabled=use_amp):
-                pred = model(imgs)
-                if pred.shape[2:] != imgs.shape[2:]:
-                    msks = TF.center_crop(msks, pred.shape[2:])
-                if sparse_annotations:
-                    keep = msks[:, :2].any(1)  # either red or green
-                    pred = pred[keep.unsqueeze(1)]
-                    msks = msks[:, 0][keep]
-                loss = dice_loss(pred, msks) \
-                    + F.binary_cross_entropy_with_logits(pred, msks)
+                if loss.isnan():
+                    print("  nan loss!!!")
+                    state = ("error", "nan_encountered")
+                    break
 
-            if loss.isnan():
-                print("  nan loss!!!")
-                continue
+                train_loss += loss.item()
+                print(
+                    f"\r{epoch:3d} {global_step:6d} {train_loss/step:.03f} "
+                    f"{loss.cpu().item():.3f}", end=""
+                )
 
-            train_loss += loss.item()
-            print(
-                f"\r{epoch:3d} {global_step:6d} {train_loss/step:.03f} "
-                f"{loss.cpu().item():.3f}", end=""
-            )
-
-            optimizer.zero_grad(set_to_none=True)
-            loss.backward()
-            if clip_gradients:
-                nn.utils.clip_grad_norm_(model.parameters(), max_norm=1.0)
-            optimizer.step()
+                optimizer.zero_grad(set_to_none=True)
+                loss.backward()
+                if clip_gradients:
+                    nn.utils.clip_grad_norm_(model.parameters(), max_norm=1.0)
+                optimizer.step()
 
             if global_step % eval_frequency == 0:
                 eval_loss = 0
@@ -183,30 +184,31 @@ def train(
 
                 if fscore > best_score:
                     best_score = fscore
-                    last_update_step = global_step
-                    print('\tBEST')
-                    torch.save(
-                        model.state_dict(),
-                        checkpoint_dir + "/checkpoint_best.pth"
-                    )
-                    if save_val_images:
-                        for k in range(max(imgs.size(0), 3)):
-                            TF.to_pil_image(
-                                imgs[k]
-                            ).save(f"{checkpoint_dir}/{k}-img.png")
-                            TF.to_pil_image(
-                                F.sigmoid(pred[k])
-                            ).save(f"{checkpoint_dir}/{k}-pred.png")
-                            TF.to_pil_image(
-                                msks[k]
-                            ).save(f"{checkpoint_dir}/{k}-true.png")
+                    if epoch != 1:
+                        last_update_step = global_step
+                        print('\tBEST')
+                        torch.save(
+                            model.state_dict(),
+                            checkpoint_dir + "/checkpoint_best.pth"
+                        )
+                        if save_val_images:
+                            for k in range(max(imgs.size(0), 3)):
+                                TF.to_pil_image(
+                                    imgs[k]
+                                ).save(f"{checkpoint_dir}/{k}-img.png")
+                                TF.to_pil_image(
+                                    F.sigmoid(pred[k])
+                                ).save(f"{checkpoint_dir}/{k}-pred.png")
+                                TF.to_pil_image(
+                                    msks[k]
+                                ).save(f"{checkpoint_dir}/{k}-true.png")
 
-                    with open(f"{checkpoint_dir}/best", "w") as fp:
-                        print(*row, sep="\t", file=fp)
-
+                        with open(f"{checkpoint_dir}/best", "w") as fp:
+                            print(*row, sep="\t", file=fp)
                 elif (global_step - last_update_step) > patience:
                     print("\t done")
-                    return
+                    state = ("done", "ok")
+                    break
                 else:
                     print()
 
@@ -214,7 +216,10 @@ def train(
 
                 if timeout is not None and time.time() - begin > timeout:
                     print("\t timeout reached.")
-                    return
+                    if last_update_step == 0:
+                        state = ("done", "not_converged")
+                    else:
+                        state = ("done", "converged")
 
             if global_step <= warmup_steps:
                 lr = 10**(lr_log-2*(1-(global_step/warmup_steps)))
@@ -224,7 +229,7 @@ def train(
             global_step += 1
         train_loss = 0
         epoch += 1
-
+    return state
 
 class TrivialAugment(nn.Module):
     def __init__(
@@ -534,7 +539,7 @@ if __name__ == "__main__":
             print(k, v, sep="\t", file=fp)
 
     try:
-        train(
+        status, reason = train(
             model, train_loader, val_loader, args.checkpoint_dir, args.epochs,
             lr=args.learning_rate,
             eval_frequency=eval_freq,
@@ -550,7 +555,11 @@ if __name__ == "__main__":
     except KeyboardInterrupt:
         print()
         print("Received keyboard interrupt. bye!")
+        status, reason = "done", "interrupt"
 
     mem = torch.cuda.memory_reserved()
+    print(f"STATUS: {status}: {reason}")
     print(f"GPU: {mem/1024**3:.1f} GB reserved")
+    if reason != "converged":
+        sys.exit(41)
     sys.exit(0)
