@@ -8,10 +8,13 @@ for more details.
 
 """
 import torch
+import warnings
+
 from torch import nn
 from torchvision.transforms.v2.functional import pad, center_crop, resize
 
-from mobile_sam import build_sam_vit_t
+with warnings.catch_warnings(action="ignore"):
+    from mobile_sam import build_sam_vit_t
 
 from common import IMAGENET_MIN
 from utils import check_for_file, get_pretrained_fname
