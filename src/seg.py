@@ -185,29 +185,26 @@ def train(
 
                 if fscore > best_score:
                     best_score = fscore
-                    if epoch != 1:
-                        last_update_step = global_step
-                        print('\tBEST')
-                        torch.save(
-                            model.state_dict(),
-                            checkpoint_dir + "/checkpoint_best.pth"
-                        )
-                        if save_val_images:
-                            for k in range(max(imgs.size(0), 3)):
-                                TF.to_pil_image(
-                                    imgs[k]
-                                ).save(f"{checkpoint_dir}/{k}-img.png")
-                                TF.to_pil_image(
-                                    F.sigmoid(pred[k])
-                                ).save(f"{checkpoint_dir}/{k}-pred.png")
-                                TF.to_pil_image(
-                                    msks[k]
-                                ).save(f"{checkpoint_dir}/{k}-true.png")
+                    last_update_step = global_step
+                    print('\tBEST')
+                    torch.save(
+                        model.state_dict(),
+                        checkpoint_dir + "/checkpoint_best.pth"
+                    )
+                    if save_val_images:
+                        for k in range(max(imgs.size(0), 3)):
+                            TF.to_pil_image(
+                                imgs[k]
+                            ).save(f"{checkpoint_dir}/{k}-img.png")
+                            TF.to_pil_image(
+                                F.sigmoid(pred[k])
+                            ).save(f"{checkpoint_dir}/{k}-pred.png")
+                            TF.to_pil_image(
+                                msks[k]
+                            ).save(f"{checkpoint_dir}/{k}-true.png")
 
-                        with open(f"{checkpoint_dir}/best", "w") as fp:
-                            print(*row, sep="\t", file=fp)
-                    else:
-                        print()
+                    with open(f"{checkpoint_dir}/best", "w") as fp:
+                        print(*row, sep="\t", file=fp)
                 elif (global_step - last_update_step) > patience:
                     print("\t done")
                     state = ("done", "ok")
