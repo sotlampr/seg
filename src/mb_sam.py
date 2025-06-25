@@ -59,7 +59,7 @@ class Model(nn.Module):
 
 
 def new(model_name, pretrained=False, optimize=True):
-    weights_fname, _ = models[model_name]
+    weights_fname, *_ = models[model_name]
     if pretrained:
         checkpoint = get_pretrained_fname(weights_fname)
     else:
