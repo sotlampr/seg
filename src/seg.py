@@ -493,7 +493,7 @@ if __name__ == "__main__":
         status, reason = "done", "interrupt"
 
     mem = torch.cuda.memory_reserved()
-    print(f"STATUS: {status}: {reason}")
+    print(f"\nSTATUS: {status}: {reason}")
     print(f"GPU: {mem/1024**3:.1f} GB reserved")
     if status != "done":
         sys.exit(1)
