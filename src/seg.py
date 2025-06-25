@@ -206,6 +206,8 @@ def train(
 
                         with open(f"{checkpoint_dir}/best", "w") as fp:
                             print(*row, sep="\t", file=fp)
+                    else:
+                        print()
                 elif (global_step - last_update_step) > patience:
                     print("\t done")
                     state = ("done", "ok")
