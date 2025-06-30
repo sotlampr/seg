@@ -18,7 +18,8 @@ fi
 #done
 
 
-echo "package model pretrained dataset run epoch step training_time train_loss val_loss val_iou val_f1 batch_size model_size num_parms flops"| tr ' ' '	'
+#echo "package model pretrained dataset run epoch step training_time train_loss val_loss val_iou val_f1 batch_size model_size num_parms flops"| tr ' ' '	'
+echo "package model pretrained dataset run epoch step training_time train_loss val_loss val_iou val_f1"| tr ' ' '	'
 for f in ../results/**/$target; do
   if echo $f | grep -q -- -pretrained; then
     pt=1
@@ -31,9 +32,9 @@ for f in ../results/**/$target; do
   meta_fn=$(echo $f| sed "s/$target$/meta/g")
 
   if test $target = "best"; then
-    echo $package_model $pt $dataset_run $(cat $f) $(cat $meta_fn)| tr  ' ' '	'
+    echo $package_model $pt $dataset_run $(cat $f) | tr  ' ' '	'
   elif test $target = "results"; then
-    echo "$(sed 1d $f)"| sed -e "s/$/ $(cat $meta_fn)/g" -e "s/^/$package_model $pt $dataset_run /g" | tr  ' ' '	'
+    echo "$(sed 1d $f)"| sed -e "s/^/$package_model $pt $dataset_run /g" | tr  ' ' '	'
   else
     echo "Unrecognized target '$target'"
     exit 1
