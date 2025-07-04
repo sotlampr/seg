@@ -2,7 +2,7 @@
 set -e
 
 # These variables can be overrided in the calling environment
-DATA_PATH=${DATA_PATH:=../../seg_root_in_soil_next/data}
+DATA_PATH=${DATA_PATH:=../data}
 DATASETS=${DATASETS:=chicory cotton grassland papaya peanut sesame sunflower switchgrass deeproot_ann}
 NUM_RUNS=${NUM_RUNS:=2}
 OUTDIR=${OUTDIR:=../results}
@@ -46,9 +46,46 @@ trap 'die $LINENO' ERR
 batch_size () {
   run_id=$1
   case $run_id in
+    samII/hiera-base_plus-cotton-*|\
+    samII/hiera-base_plus-papaya-*|\
+    samII/hiera-base_plus-sesame-*|\
+    samII/hiera-base_plus-switchgrass-*)
+      echo 4;;
+    m2f/swin-small-cotton-*|\
+    m2f/swin-small-papaya-*|\
+    m2f/swin-small-sesame-*|\
+    m2f/swin-small-switchgrass-*|\
+    m2f/swin-tiny-cotton-*|\
+    m2f/swin-tiny-papaya-*|\
+    m2f/swin-tiny-sesame-*|\
+    m2f/swin-tiny-switchgrass-*|\
+    mb_sam/vit_t-cotton-*|\
+    rootnav/hourglass-cotton-*|\
+    rootnav/hourglass-papaya-*|\
+    rootnav/hourglass-sesame-*|\
+    rootnav/hourglass-switchgrass-*|\
+    samII/hiera-small-cotton-*|\
+    samII/hiera-small-papaya-*|\
+    samII/hiera-small-sesame-*|\
+    samII/hiera-small-switchgrass-*|\
+    segmentation_pytorch/segformer-mit_b1-cotton-*|\
+    segmentation_pytorch/segformer-mit_b1-papaya-*|\
+    segmentation_pytorch/segformer-mit_b1-sesame-*|\
+    segmentation_pytorch/segformer-mit_b1-switchgrass-*|\
+    segmentation_pytorch/segformer-mit_b2-cotton-*|\
+    segmentation_pytorch/segformer-mit_b2-papaya-*|\
+    segmentation_pytorch/segformer-mit_b2-sesame-*|\
+    segmentation_pytorch/segformer-mit_b2-switchgrass-*|\
+    segmentation_pytorch/segformer-mit_b3-cotton-*|\
+    segmentation_pytorch/segformer-mit_b3-papaya-*|\
+    segmentation_pytorch/segformer-mit_b3-sesame-*|\
+    segmentation_pytorch/segformer-mit_b3-switchgrass-*)
+      echo 8;;
     *)
       echo 16;;
     esac
+
+
 }
 
 learning_rate () {
