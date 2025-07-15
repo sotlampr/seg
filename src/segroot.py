@@ -56,13 +56,14 @@ def new(model_name, pretrained=False, optimize=True):
     model_kwargs = models[model_name]
     if "weights" not in model_kwargs:
         assert not pretrained
-    if pretrained:
+    else:
         weights_id = model_kwargs.pop("weights")
-        weights_fn = get_pretrained_fname(weights_id)
-        check_for_file(weights_fn, get_url, weights_fn)
+
     model = Model(SegRoot(**model_kwargs, num_classes=1))
 
     if pretrained:
+        weights_fn = get_pretrained_fname(weights_id)
+        check_for_file(weights_fn, get_url, weights_id)
         model.load_state_dict(torch.load(weights_fn, weights_only=False))
 
     return torch.compile(model) if optimize else model
