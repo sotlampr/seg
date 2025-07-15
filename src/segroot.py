@@ -12,16 +12,25 @@ import sys
 import torch
 from torch import nn
 
+from utils import check_for_file, get_pretrained_fname
+
 sys.path.insert(0, "../SegRoot/code")
 from model import SegRoot  # noqa: E402
 sys.path.remove("../SegRoot/code")
 
 models = {
+    "w8d5": {
+        "width": 8, "depth": 5, "weights": "best_segnet-(8,5)-0.6441.pt"
+    },
     "w16d4": {"width": 16, "depth": 4},
     "w32d5": {"width": 32, "depth": 5},
     "w64d4": {"width": 64, "depth": 4},
     "w64d5": {"width": 64, "depth": 4}
 }
+
+
+def get_url(weights_fn):
+    return f"https://github.com/wtwtwt0330/SegRoot/raw/refs/heads/master/weights/{weights_fn}"  # noqa: E501
 
 
 class Model(nn.Module):
@@ -43,8 +52,17 @@ class Model(nn.Module):
 
 
 def new(model_name, pretrained=False, optimize=True):
-    assert not pretrained
 
     model_kwargs = models[model_name]
+    if "weights" not in model_kwargs:
+        assert not pretrained
+    if pretrained:
+        weights_id = model_kwargs.pop("weights")
+        weights_fn = get_pretrained_fname(weights_id)
+        check_for_file(weights_fn, get_url, weights_fn)
     model = Model(SegRoot(**model_kwargs, num_classes=1))
+
+    if pretrained:
+        model.load_state_dict(torch.load(weights_fn, weights_only=False))
+
     return torch.compile(model) if optimize else model
