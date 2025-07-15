@@ -1,5 +1,5 @@
 """
-Copyright (C) 2025  Sotiris Lamrpinidis
+Copyright (C) 2025  Sotiris Lamprinidis
 
 This program is free software and all terms of the GNU General Public License
 version 3 as published by the Free Software Foundation apply. See the LICENSE
