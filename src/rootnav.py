@@ -13,14 +13,23 @@ import torch
 from torch import nn
 from torchvision.transforms.v2.functional import resize
 
+from utils import check_for_file, get_pretrained_fname
+
 sys.path.insert(0, "../RootNav-2.0/training")
 from rootnav2.hourglass import HourglassNet, Bottleneck  # noqa: E402
 sys.path.remove("../RootNav-2.0/training")
 
+upstream_url = \
+    "https://cvl.cs.nott.ac.uk/resources/trainedmodels/"
 
 models = {
-    "hourglass": None
+    "hourglass": "wheat_bluepaper-6d109612.pth"
 }
+
+
+def get_url(model_name, weights_fn):
+    url = f"{upstream_url}/{weights_fn}"
+    return url
 
 
 class Model(nn.Module):
@@ -40,6 +49,14 @@ class Model(nn.Module):
 
 
 def new(model_name, pretrained=False, optimize=True):
-    assert not pretrained
+    model_id, weights_fn = models[model_name]
+    if pretrained:
+        pretrained_weights = get_pretrained_fname(weights_fn)
+    else:
+        pretrained_weights = None
+    check_for_file(pretrained_weights, get_url, weights_fn)
     model = HourglassNet(Bottleneck, num_stacks=1, num_blocks=1, num_classes=1)
+    if pretrained:
+        model.load_state_dict(
+            torch.load(pretrained_weights, weights_only=False))
     return Model(model, optimize=optimize)

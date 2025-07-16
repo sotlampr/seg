@@ -28,6 +28,8 @@ import torch
 from torch import nn
 from torchvision.transforms.v2.functional import center_crop
 
+from utils import check_for_file, get_pretrained_fname
+
 
 class DownBlock(nn.Module):
     def __init__(self, in_channels):
@@ -276,13 +278,29 @@ class UNetGNRes(nn.Module):
         return out
 
 
+zenodo_base = "https://zenodo.org/records"
+
+
+def get_url(zenodo_id, weights_fn):
+    url = f"{zenodo_base}/{zenodo_id}/files/{weights_fn}?download=1"
+    return url
+
+
 models = {
-    "GN": UNetGN,
-    "GNRes": UNetGNRes
+    "GN": (UNetGN, 3484015, "checkpoint_73.pkl"),
+    "GNRes": (UNetGNRes, None, None)
 }
 
 
 def new(name, pretrained=False, optimize=True):
-    assert not pretrained
-    cls = models[name]
-    return torch.compile(cls()) if optimize else cls()
+    cls, zenodo_id, weights_fn = models[name]
+    if pretrained:
+        pretrained_weights = get_pretrained_fname(weights_fn)
+    else:
+        pretrained_weights = None
+    check_for_file(pretrained_weights, get_url, zenodo_id, weights_fn)
+    model = cls()
+    if pretrained:
+        model.load_state_dict(
+            torch.load(pretrained_weights, weights_only=False))
+    return torch.compile(model) if optimize else model
