@@ -296,11 +296,13 @@ def new(name, pretrained=False, optimize=True):
     cls, zenodo_id, weights_fn = models[name]
     if pretrained:
         pretrained_weights = get_pretrained_fname(weights_fn)
+        check_for_file(pretrained_weights, get_url, zenodo_id, weights_fn)
     else:
         pretrained_weights = None
-    check_for_file(pretrained_weights, get_url, zenodo_id, weights_fn)
     model = cls()
     if pretrained:
-        model.load_state_dict(
-            torch.load(pretrained_weights, weights_only=False))
+        state_dict = torch.load(pretrained_weights, weights_only=True)
+        del state_dict["conv_out.0.weight"], state_dict["conv_out.0.bias"]
+        del state_dict["conv_out.2.weight"], state_dict["conv_out.2.bias"]
+        model.load_state_dict(state_dict, strict=False)
     return torch.compile(model) if optimize else model

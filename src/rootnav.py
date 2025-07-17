@@ -49,7 +49,7 @@ class Model(nn.Module):
 
 
 def new(model_name, pretrained=False, optimize=True):
-    model_id, weights_fn = models[model_name]
+    weights_fn = models[model_name]
     if pretrained:
         pretrained_weights = get_pretrained_fname(weights_fn)
     else:
@@ -57,6 +57,10 @@ def new(model_name, pretrained=False, optimize=True):
     check_for_file(pretrained_weights, get_url, weights_fn)
     model = HourglassNet(Bottleneck, num_stacks=1, num_blocks=1, num_classes=1)
     if pretrained:
-        model.load_state_dict(
-            torch.load(pretrained_weights, weights_only=False))
+        state_dict = \
+            torch.load(pretrained_weights, weights_only=False)["model_state"]
+        state_dict = {
+            k.split(".", maxsplit=1)[-1]: v for k, v in state_dict.items()}
+        del state_dict["score.0.weight"], state_dict["score.0.bias"]
+        model.load_state_dict(state_dict, strict=False)
     return Model(model, optimize=optimize)
