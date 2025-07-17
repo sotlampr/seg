@@ -59,6 +59,7 @@ def new(model_name, pretrained=False, optimize=True):
     model = Model(SegRoot(**model_kwargs, num_classes=1))
 
     if pretrained:
+        assert weights_id is not None
         weights_fn = get_pretrained_fname(weights_id)
         check_for_file(weights_fn, get_url, None, None, weights_id)
         model.load_state_dict(torch.load(weights_fn, weights_only=False))
