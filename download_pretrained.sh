@@ -6,7 +6,7 @@
 # file in the root directory of the project or <https://www.gnu.org/licenses/>
 # for more details.
 mkdir -p pretrained
-python << END | xargs -n1 curl -LO --output-dir pretrained 
+python << END | xargs -n1 curl -C - -LO --output-dir pretrained 
 import sys
 import urllib.request
 sys.path.insert(0, "Mask2Former")
