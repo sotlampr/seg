@@ -291,6 +291,11 @@ models = {
     "GNRes": (UNetGNRes, 3754046, "final_models.zip")
 }
 
+keys_to_delete = [
+    "conv_out.0.weight", "conv_out.0.bias"
+    "conv_out.2.weight", "conv_out.2.bias"
+]
+
 
 def new(name, pretrained=False, optimize=True):
     cls, zenodo_id, weights_fn = models[name]
@@ -304,7 +309,8 @@ def new(name, pretrained=False, optimize=True):
     model = cls()
     if pretrained:
         state_dict = torch.load(pretrained_weights, weights_only=True)
-        del state_dict["conv_out.0.weight"], state_dict["conv_out.0.bias"]
-        del state_dict["conv_out.2.weight"], state_dict["conv_out.2.bias"]
+        for k in keys_to_delete:
+            if k in state_dict:
+                del state_dict[k]
         model.load_state_dict(state_dict, strict=False)
     return torch.compile(model) if optimize else model
