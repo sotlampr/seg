@@ -23,11 +23,11 @@ upstream_url = \
     "https://cvl.cs.nott.ac.uk/resources/trainedmodels/"
 
 models = {
-    "hourglass": "wheat_bluepaper-6d109612.pth"
+    "hourglass": ("wheat_bluepaper-6d109612.pth",)
 }
 
 
-def get_url(model_name, weights_fn):
+def get_url(weights_fn):
     url = f"{upstream_url}/{weights_fn}"
     return url
 

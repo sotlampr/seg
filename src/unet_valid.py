@@ -281,19 +281,21 @@ class UNetGNRes(nn.Module):
 zenodo_base = "https://zenodo.org/records"
 
 
-def get_url(zenodo_id, weights_fn):
+def get_url(_, zenodo_id, weights_fn):
     url = f"{zenodo_base}/{zenodo_id}/files/{weights_fn}?download=1"
     return url
 
 
 models = {
     "GN": (UNetGN, 3484015, "checkpoint_73.pkl"),
-    "GNRes": (UNetGNRes, None, None)
+    "GNRes": (UNetGNRes, 3754046, "final_models.zip")
 }
 
 
 def new(name, pretrained=False, optimize=True):
     cls, zenodo_id, weights_fn = models[name]
+    if weights_fn == "final_models.zip":
+        weights_fn = "towers_b_corrective.pkl"
     if pretrained:
         pretrained_weights = get_pretrained_fname(weights_fn)
         check_for_file(pretrained_weights, get_url, zenodo_id, weights_fn)
