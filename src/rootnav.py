@@ -49,7 +49,7 @@ class Model(nn.Module):
 
 
 def new(model_name, pretrained=False, optimize=True):
-    weights_fn = models[model_name]
+    weights_fn, = models[model_name]
     if pretrained:
         pretrained_weights = get_pretrained_fname(weights_fn)
     else:
