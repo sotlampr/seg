@@ -48,10 +48,11 @@ if __name__ == "__main__":
     parser.add_argument(
         "-s", "--shape", type=int, nargs=2, default=(1024, 1024)
     )
+    parser.add_argument("-P", "--pretrained", action="store_true")
     args = parser.parse_args()
 
     module, model_name = models[args.model]
-    model = module.new(model_name, pretrained=False, optimize=False)
+    model = module.new(model_name, pretrained=args.pretrained, optimize=False)
     input_shape = (args.batch_size, 3, *args.shape)
     res = analyze_model(model, input_shape)
     sys.exit(0)
