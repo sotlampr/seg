@@ -7,6 +7,9 @@ https://www.biorxiv.org/content/10.1101/2025.04.20.649645v1
 Two outputs:
     deeproot_ann: Sparse annotations from RootPainter
     deeproot_seg: Full segmentations (produced by the model?)
+
+
+Export PYTHONHASHSEED=42 to generate our splits.
 """
 import urllib.request
 import io
@@ -26,13 +29,14 @@ from utils import (
 NAME_ANN = "deeproot_ann"
 NAME_SEG = "deeproot_seg"
 URL = "https://zenodo.org/api/records/15213661/files-archive"
-FNAME = "files-archive.zip"
+FNAME = "15213661.zip"
 
 make_directories(NAME_ANN)
 make_directories(NAME_SEG)
 
 train_samples = set()
 val_samples = set()
+test_samples = set()
 segmentations_samples = dict()
 
 segmentations_todo = set()
@@ -41,7 +45,6 @@ segmentations_todo = set()
 ct = "annotations"
 
 with tempfile.TemporaryFile("w+b") as fo:
-    # download_to_stream(URL, fo, 1127)
     download(URL, FNAME, fo, 1127)
     print("Extracting images & annotations", end="", flush=True)
     with zipfile.ZipFile(fo) as zf:
@@ -61,11 +64,17 @@ with tempfile.TemporaryFile("w+b") as fo:
                     match path:
                         case "train" | "val":
                             print(".", end="", flush=True)
-                            if path == "train":
+                            i = hash(img_id) % 10
+                            if i < 6:
+                                subset = "train"
                                 train_samples.add(img_id)
-                            else:
+                            elif i < 8:
+                                subset = "val"
                                 val_samples.add(img_id)
-                            zimg_to_disk(fm, entry, NAME_ANN, path, ct, name)
+                            else:
+                                subset = "test"
+                                test_samples.add(img_id)
+                            zimg_to_disk(fm, entry, NAME_ANN, subset, ct, name)
                         case "segmentations":
                             print(".", end="", flush=True)
                             segmentations_todo.add((entry, img_id, name))
@@ -78,18 +87,22 @@ with tempfile.TemporaryFile("w+b") as fo:
                 elif img_id in val_samples:
                     segmentations_samples[img_id] = "val"
                     zimg_to_disk(fm, entry, NAME_SEG, "val", ct, name)
+                elif img_id in test_samples:
+                    segmentations_samples[img_id] = "test"
+                    zimg_to_disk(fm, entry, NAME_SEG, "test", ct, name)
                 else:
-                    # 70/10/30 split
                     i = hash(img_id) % 10
                     if i < 6:
                         segmentations_samples[img_id] = "train"
                         zimg_to_disk(fm, entry, NAME_SEG, "train", ct, name)
-                    elif i < 7:
+                    elif i < 8:
                         segmentations_samples[img_id] = "val"
                         zimg_to_disk(fm, entry, NAME_SEG, "val", ct, name)
                     else:
                         segmentations_samples[img_id] = "test"
                         zimg_to_disk(fm, entry, NAME_SEG, "test", ct, name)
+
+
 
         ct = "photos"
         with zipfile.ZipFile(
@@ -110,6 +123,8 @@ with tempfile.TemporaryFile("w+b") as fo:
                         zimg_to_disk(fm, entry, NAME_ANN, "train", ct, name)
                     elif img_id in val_samples:
                         zimg_to_disk(fm, entry, NAME_ANN, "val", ct, name)
+                    elif img_id in test_samples:
+                        zimg_to_disk(fm, entry, NAME_ANN, "test", ct, name)
 
                     if img_id in segmentations_samples:
                         subset = segmentations_samples[img_id]

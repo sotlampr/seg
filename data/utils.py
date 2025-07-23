@@ -4,7 +4,7 @@ import urllib.request
 
 
 def download_to_stream(url, stream, size_in_mb):
-    # download to stream file by 10MB per chunk
+    # download file to stream by 10MB per chunk
 
     cur = 1
     begin = time.time()
@@ -75,7 +75,7 @@ def check_equal_annotations_photos(dataset_name):
     for subset in ("train", "val", "test"):
         an = len(os.listdir(f"{dataset_name}/{subset}/annotations"))
         im = len(os.listdir(f"{dataset_name}/{subset}/photos"))
-        assert an == im
+        assert an == im, (an, im)
         print(f"{subset}: {an}")
 
 
