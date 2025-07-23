@@ -31,7 +31,7 @@ for model_path in $@; do
 
   if test $img_height -lt $height; then height=$img_height; fi
   if test $img_width -lt $width; then width=$img_width; fi
-  shape="$img_height $img_width"
+  shape="$height $width"
 
   fsize=$(du $model_path/checkpoint_best.pth| cut -f1)
   if test $? -ne 0; then echo "$model_path: FAILED"; continue; fi
@@ -39,14 +39,14 @@ for model_path in $@; do
   num_params=$(python -c "import torch; x = torch.load('$model_path/checkpoint_best.pth'); print(sum(p.numel() for p in x.values()))")
   if test $? -ne 0; then echo "$model_path: FAILED"; continue; fi
 
-  cached=$(grep "$model-$bs-$s$pt_flag:" .meta-cache)
+  cached=$(grep "$model-$bs-$shape$pt_flag:" .meta-cache)
   if test $? -eq 0; then
     echo "$model_path: Found cached"
     flops=$(echo $cached| cut -f2 -d:)
   else
     flops=$(./print_flops.py $package/$model -b$bs -s $shape $pt_flag)
     if test $? -ne 0; then echo "$model_path: FAILED"; continue; fi
-    echo "$model-$bs-$s$pt_flag:$flops" >> .meta-cache
+    echo "$model-$bs-$shape$pt_flag:$flops" >> .meta-cache
   fi
 
   echo "file_size	$fsize" > $meta_fn
