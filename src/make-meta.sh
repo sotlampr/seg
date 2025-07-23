@@ -1,0 +1,47 @@
+#!/bin/bash
+#set -e
+
+for model_path in $@; do
+  meta_fn=$model_path/meta
+  if test -e $meta_fn; then
+    echo $model_path: meta found, continue
+    continue
+  fi
+
+  if echo $f | grep -q -- -pretrained; then
+    pt_flag=-P
+  fi
+
+  fn=$(echo $model_path| cut -f3 -d/ | sed 's/-pretrained//g')
+  read package model <<< $(echo $fn| rev| cut -f3- -d-|rev| sed 's/-/	/')
+  
+  cfg_fn=$model_path/config
+  if ! test -e $cfg_fn; then
+    echo "$model_path/config does not exist, skipping"
+    continue
+  fi
+
+  bs=$(grep batch_size $cfg_fn| cut -f2 -d'	')
+  s=$(grep shape $cfg_fn| grep -o '[0-9]\+'| tr '\n' ' ')
+
+  fsize=$(du $model_path/checkpoint_best.pth| cut -f1)
+  if test $? -ne 0; then echo "$model_path: FAILED"; continue; fi
+
+  num_params=$(python -c "import torch; x = torch.load('$model_path/checkpoint_best.pth'); print(sum(p.numel() for p in x.values()))")
+  if test $? -ne 0; then echo "$model_path: FAILED"; continue; fi
+
+  cached=$(grep "$model-$bs-$s$pt_flag:" .meta-cache)
+  if test $? -eq 0; then
+    echo "$model_path: Found cached"
+    flops=$(echo $cached| cut -f2 -d:)
+  else
+    flops=$(./print_flops.py $package/$model -b$bs -s $s $pt_flag)
+    if test $? -ne 0; then echo "$model_path: FAILED"; continue; fi
+    echo "$model-$bs-$s$pt_flag:$flops" >> .meta-cache
+  fi
+
+  echo "file_size	$fsize" > $meta_fn
+  echo "num_params	$num_params" >> $meta_fn
+  echo "flops	$flops" >> $meta_fn
+
+done
