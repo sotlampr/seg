@@ -28,7 +28,7 @@ for model_path in $@; do
   read height width <<< $(grep shape $cfg_fn| grep -o '[0-9]\+'| tr '\n' ' ')
   read img_height img_width <<< $(identify -format "%h %w" "$(ls -1 $DATA_PATH/$dataset/val/photos/*| tail -1)")
 
-  if ! echo $model_path| grep -q rootnav; then
+  if ! echo $model_path| grep -Eq '(rootnav|segroot)'; then
     if test $img_height -lt $height; then height=$img_height; fi
     if test $img_width -lt $width; then width=$img_width; fi
   fi
