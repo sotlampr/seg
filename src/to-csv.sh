@@ -38,7 +38,7 @@ for f in ../results/**/$target; do
   if test $target = "best"; then
     echo $package_model $pt $dataset_run $(cat $f) $bs $lr $file_size $num_params $flops| tr  ' ' '	'
   elif test $target = "results"; then
-    echo "$(sed 1d $f)"| sed -e "s/^/$package_model $pt $dataset_run $bs $lr $file_size $num_params $flops/g" | tr  ' ' '	'
+    echo "$(sed 1d $f)"| sed -e "s/^/$package_model $pt $dataset_run /g" -e "s/$/ $bs $lr $file_size $num_params $flops/g" | tr  ' ' '	'
   else
     echo "Unrecognized target '$target'"
     exit 1
