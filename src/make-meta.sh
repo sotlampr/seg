@@ -26,7 +26,7 @@ for model_path in $@; do
   bs=$(grep batch_size $cfg_fn| cut -f2 -d'	')
 
   read height width <<< $(grep shape $cfg_fn| grep -o '[0-9]\+'| tr '\n' ' ')
-  read img_height img_width <<< $(identify -format "%h %w" $(ls -1 $DATA_PATH/$dataset/val/photos/*| tail -1))
+  read img_height img_width <<< $(identify -format "%h %w" "$(ls -1 $DATA_PATH/$dataset/val/photos/*| tail -1)")
 
   if ! echo $model_path| grep -q rootnav; then
     if test $img_height -lt $height; then height=$img_height; fi
