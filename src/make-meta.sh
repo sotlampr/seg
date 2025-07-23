@@ -1,5 +1,4 @@
 #!/bin/bash
-#set -e
 
 DATA_PATH=${DATA_PATH:=../../seg_root_in_soil_next/data}
 
@@ -29,8 +28,21 @@ for model_path in $@; do
   read height width <<< $(grep shape $cfg_fn| grep -o '[0-9]\+'| tr '\n' ' ')
   read img_height img_width <<< $(identify -format "%h %w" $(ls -1 $DATA_PATH/$dataset/val/photos/*| tail -1))
 
-  if test $img_height -lt $height; then height=$img_height; fi
-  if test $img_width -lt $width; then width=$img_width; fi
+  if ! echo $model_path| grep -q rootnav; then
+    if test $img_height -lt $height; then height=$img_height; fi
+    if test $img_width -lt $width; then width=$img_width; fi
+  fi
+
+
+  if echo $model_path| grep -q segmentation_pytorch; then
+    if test $(($height%32)) -ne 0; then
+      height=$(($height+32-$height%32))
+    fi
+    if test $(($width%32)) -ne 0; then
+      width=$(($width+32-$width%32))
+    fi
+  fi
+
   shape="$height $width"
 
   fsize=$(du $model_path/checkpoint_best.pth| cut -f1)
