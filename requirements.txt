@@ -8,3 +8,4 @@ pytest
 git+https://github.com/ChaoningZhang/MobileSAM
 thop
 git+https://github.com/facebookresearch/sam2.git
+calflops
