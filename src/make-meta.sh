@@ -1,6 +1,8 @@
 #!/bin/bash
 #set -e
 
+DATA_PATH=${DATA_PATH:=../../seg_root_in_soil_next/data}
+
 for model_path in $@; do
   meta_fn=$model_path/meta
   if test -e $meta_fn; then
@@ -13,6 +15,7 @@ for model_path in $@; do
   fi
 
   fn=$(echo $model_path| cut -f3 -d/ | sed 's/-pretrained//g')
+  dataset=$(echo $fn| rev| cut -f2 -d-|rev| tr '-' '	')
   read package model <<< $(echo $fn| rev| cut -f3- -d-|rev| sed 's/-/	/')
   
   cfg_fn=$model_path/config
@@ -22,7 +25,13 @@ for model_path in $@; do
   fi
 
   bs=$(grep batch_size $cfg_fn| cut -f2 -d'	')
-  s=$(grep shape $cfg_fn| grep -o '[0-9]\+'| tr '\n' ' ')
+
+  read height width <<< $(grep shape $cfg_fn| grep -o '[0-9]\+'| tr '\n' ' ')
+  read img_height img_width <<< $(identify -format "%h %w" $(ls -1 $DATA_PATH/$dataset/val/photos/*| tail -1))
+
+  if test $img_height -lt $height; then height=$img_height; fi
+  if test $img_width -lt $width; then width=$img_width; fi
+  shape="$img_height $img_width"
 
   fsize=$(du $model_path/checkpoint_best.pth| cut -f1)
   if test $? -ne 0; then echo "$model_path: FAILED"; continue; fi
@@ -35,7 +44,7 @@ for model_path in $@; do
     echo "$model_path: Found cached"
     flops=$(echo $cached| cut -f2 -d:)
   else
-    flops=$(./print_flops.py $package/$model -b$bs -s $s $pt_flag)
+    flops=$(./print_flops.py $package/$model -b$bs -s $shape $pt_flag)
     if test $? -ne 0; then echo "$model_path: FAILED"; continue; fi
     echo "$model-$bs-$s$pt_flag:$flops" >> .meta-cache
   fi
