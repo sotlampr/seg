@@ -7,6 +7,8 @@ file in the root directory of the project or <https://www.gnu.org/licenses/>
 for more details.
 
 """
+import os
+
 import torch
 
 IMAGENET_NORM = dict(
@@ -17,3 +19,65 @@ IMAGENET_MIN = (
     0 - torch.tensor(IMAGENET_NORM["mean"])
     / torch.tensor(IMAGENET_NORM["std"])
 )
+
+
+def torch_init(seed=42, deterministic=False):
+    torch.backends.cudnn.benchmark = not deterministic
+    torch.use_deterministic_algorithms(deterministic, warn_only=True)
+    torch.set_float32_matmul_precision("high")
+    torch.manual_seed(seed)
+
+
+import \
+    m2f, mb_sam, rootnav, sam, samII, segmentation_pytorch, segroot, \
+    torchvision_models, unet, unet_valid  # noqa: E401 E402
+
+
+MODULES = [
+    m2f, mb_sam, rootnav, sam, samII, segmentation_pytorch, segroot,
+    torchvision_models, unet, unet_valid
+]
+
+
+def all_models():
+    for module in MODULES:
+        for model in module.models.keys():
+            yield (module, model)
+
+
+def load_model(model_id, pretrained=False, optimize=True, models=None):
+    if models is None:
+        models = {f"{k.__name__}/{v}": (k, v) for k, v in all_models()}
+    module, model_name = models[model_id]
+    return module.new(
+        model_name, pretrained=pretrained, optimize=optimize
+    )
+
+
+def expand_filename(orig_fname, alternative_naming=False):
+    _, model_str = os.path.split(os.path.split(orig_fname)[0])
+    fname = orig_fname.split("/")[-2]
+    pkg, model, *attrs, last = fname.split("-")
+    if last == "pretrained":
+        pretrained = True
+        runid, dataset = attrs.pop(), attrs.pop()
+    else:
+        pretrained = False
+        runid, dataset = last, attrs.pop()
+    if alternative_naming:
+        if pkg in {
+            "m2f", "sam", "samII", "mb_sam", "unet", "unet_valid", "segroot",
+            "rootnav"
+        }:
+            attrs = (model, *attrs)
+            model = pkg
+    return dict(
+        orig_fname=orig_fname,
+        package=pkg,
+        model=model,
+        dataset=dataset,
+        runid=int(runid),
+        pretrained=pretrained,
+        attributes="-".join(attrs),
+        model_variant="-".join((model, *attrs))
+    )
