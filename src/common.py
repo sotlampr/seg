@@ -21,13 +21,6 @@ IMAGENET_MIN = (
 )
 
 
-def torch_init(seed=42, deterministic=False):
-    torch.backends.cudnn.benchmark = not deterministic
-    torch.use_deterministic_algorithms(deterministic, warn_only=True)
-    torch.set_float32_matmul_precision("high")
-    torch.manual_seed(seed)
-
-
 import \
     m2f, mb_sam, rootnav, sam, samII, segmentation_pytorch, segroot, \
     torchvision_models, unet, unet_valid  # noqa: E401 E402
@@ -37,6 +30,13 @@ MODULES = [
     m2f, mb_sam, rootnav, sam, samII, segmentation_pytorch, segroot,
     torchvision_models, unet, unet_valid
 ]
+
+
+def torch_init(seed=42, deterministic=False):
+    torch.backends.cudnn.benchmark = not deterministic
+    torch.use_deterministic_algorithms(deterministic, warn_only=True)
+    torch.set_float32_matmul_precision("high")
+    torch.manual_seed(seed)
 
 
 def all_models():
@@ -55,6 +55,10 @@ def load_model(model_id, pretrained=False, optimize=True, models=None):
 
 
 def expand_filename(orig_fname, alternative_naming=False):
+    """ Infer parameters from directory name.
+    Expected format:
+        $PACKAGE-$MODEL-$DATASET-$SEED(-pretrained)?
+    """
     _, model_str = os.path.split(os.path.split(orig_fname)[0])
     fname = orig_fname.split("/")[-2]
     pkg, model, *attrs, last = fname.split("-")

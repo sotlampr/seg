@@ -114,8 +114,7 @@ def train(
 
                 if loss.isnan():
                     print("  nan loss!!!")
-                    state = ("error", "nan_encountered")
-                    break
+                    continue
 
                 train_loss += loss.item()
                 print(
@@ -263,7 +262,7 @@ class OurAugment(nn.Module):
         return img, mask
 
 
-def get_res(fp):
+def get_resolution(fp):
     sig = fp.read(4)
     if sig == b'\x89PNG':
         fp.read(12)
@@ -294,7 +293,7 @@ class PlainDataset(torch.utils.data.Dataset):
         self.indices = []
         for (img_fname, mask_fname) in zip(img_fnames, mask_fnames):
             with open(img_fname, "rb") as fp:
-                this_shape = get_res(fp)
+                this_shape = get_resolution(fp)
 
                 self.indices.extend(zip(
                     repeat(img_fname), repeat(mask_fname),
@@ -448,6 +447,9 @@ if __name__ == "__main__":
         args.eval_frequency = len(train_loader.dataset)
 
     eval_freq = args.eval_frequency // args.batch_size
+    # Known bug
+    # if args.eval_frequency % args.batch_size:
+    #     eval_freq += 1
     warmup_st = args.warmup_steps_mul * eval_freq
 
     if not os.path.exists(args.checkpoint_dir):

@@ -1,4 +1,6 @@
 #!/bin/bash
+# Create a ./meta file on every directory in the argument list
+# with model size, num. parameters, and flops.
 
 DATA_PATH=${DATA_PATH:=../../seg_root_in_soil_next/data}
 
@@ -13,9 +15,9 @@ for model_path in $@; do
     pt_flag=-P
   fi
 
-  fn=$(echo $model_path| cut -f3 -d/ | sed 's/-pretrained//g')
-  dataset=$(echo $fn| rev| cut -f2 -d-|rev| tr '-' '	')
-  read package model <<< $(echo $fn| rev| cut -f3- -d-|rev| sed 's/-/	/')
+  tmp=$(echo $model_path| cut -f3 -d/ | sed 's/-pretrained//g')
+  dataset=$(echo $tmp| rev| cut -f2 -d-|rev| tr '-' '	')
+  read package model <<< $(echo $tmp| rev| cut -f3- -d-|rev| sed 's/-/	/')
   
   cfg_fn=$model_path/config
   if ! test -e $cfg_fn; then
@@ -25,16 +27,19 @@ for model_path in $@; do
 
   bs=$(grep batch_size $cfg_fn| cut -f2 -d'	')
 
+  # Get model shape and image shape/resolution
   read height width <<< $(grep shape $cfg_fn| grep -o '[0-9]\+'| tr '\n' ' ')
   read img_height img_width <<< $(identify -format "%h %w" "$(ls -1 $DATA_PATH/$dataset/val/photos/*| tail -1)")
 
   if ! echo $model_path| grep -Eq '(rootnav|segroot)'; then
+    # Use the smallest of the two
     if test $img_height -lt $height; then height=$img_height; fi
     if test $img_width -lt $width; then width=$img_width; fi
   fi
 
 
   if echo $model_path| grep -q segmentation_pytorch; then
+    # These models need input divisible by 16/32
     if test $(($height%32)) -ne 0; then
       height=$(($height+32-$height%32))
     fi

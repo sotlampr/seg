@@ -1,4 +1,7 @@
 #!/bin/sh
+# Output tsv-like values to stdout from ../results
+# Accepts and optional argument "results" to generate fine-grained results for each
+# epoch instead of just the best model
 
 if test $# -eq 1; then
   target=$1
@@ -33,7 +36,6 @@ for f in ../results/**/$target; do
   file_size=$(grep file_size $meta_fn| cut -f2 -d'	')
   num_params=$(grep num_params $meta_fn| cut -f2 -d'	')
   flops=$(grep flops $meta_fn| cut -f2 -d'	')
-
 
   if test $target = "best"; then
     echo $package_model $pt $dataset_run $(cat $f) $bs $lr $file_size $num_params $flops| tr  ' ' '	'

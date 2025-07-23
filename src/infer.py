@@ -42,6 +42,9 @@ def make_dirs(dataset, base_path=None):
 
 @lru_cache
 def get_images(dataset, base_path, out_path, num_samples=None, seed=42):
+    """ Read images and annotations for a dataset, cache, and save them
+        to out_path.
+    """
     print("loading", dataset)
     make_path_f = partial(make_path, base_path=out_path, dataset=dataset)
     data_path = path_for(dataset, base_path, "test")
