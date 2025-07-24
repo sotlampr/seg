@@ -59,9 +59,13 @@ def expand_filename(orig_fname, alternative_naming=False):
     Expected format:
         $PACKAGE-$MODEL-$DATASET-$SEED(-pretrained)?
     """
-    _, model_str = os.path.split(os.path.split(orig_fname)[0])
-    fname = orig_fname.split("/")[-2]
-    pkg, model, *attrs, last = fname.split("-")
+    abs_fname = os.path.abspath(orig_fname)
+    if os.path.isdir(abs_fname):
+        _, parent_dir = os.path.split(orig_fname)
+    else:
+        _, parent_dir = os.path.split(os.path.split(orig_fname)[0])
+
+    pkg, model, *attrs, last = parent_dir.split("-")
     if last == "pretrained":
         pretrained = True
         runid, dataset = attrs.pop(), attrs.pop()
