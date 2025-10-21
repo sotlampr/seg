@@ -41,13 +41,13 @@ def make_dirs(dataset, base_path=None):
 
 
 @lru_cache
-def get_images(dataset, base_path, out_path, num_samples=None, seed=42):
+def get_images(dataset, base_path, out_path, subset="val", num_samples=None, seed=42):
     """ Read images and annotations for a dataset, cache, and save them
         to out_path.
     """
     print("loading", dataset)
     make_path_f = partial(make_path, base_path=out_path, dataset=dataset)
-    data_path = path_for(dataset, base_path, "test")
+    data_path = path_for(dataset, base_path, subset)
     fns = list(zip(*map(
         lambda x: sorted(map(partial(os.path.join, x), os.listdir(x))),
         map(partial(os.path.join, data_path), ("photos", "annotations"))
@@ -169,8 +169,8 @@ def main(args):
 
     os.makedirs(args.out_path, exist_ok=True)
     get_images_f = partial(
-        get_images, base_path=args.data_path, out_path=args.out_path,
-        num_samples=args.num_samples)
+        get_images, subset=args.subset, base_path=args.data_path,
+        out_path=args.out_path, num_samples=args.num_samples)
     models = {f"{k.__name__}/{v}": (k, v) for k, v in all_models()}
 
     for model_fn in args.model_checkpoints:
@@ -190,7 +190,7 @@ def main(args):
             model_id += '-' + run["attributes"]
 
         model = load_model(
-            model_id, pretrained=run["pretrained"], models=models
+             model_id, pretrained=run["pretrained"], models=models
         ).to(args.device).eval()
 
         try:
@@ -234,6 +234,7 @@ if __name__ == "__main__":
     parser.add_argument("model_checkpoints", nargs="+")
     parser.add_argument("-d", "--data-path", default="../data")
     parser.add_argument("-o", "--out-path", default="../inferred")
+    parser.add_argument("-s", "--subset", default="val", choices=("train", "val", "test"))
     parser.add_argument("-n", "--num-samples", type=int)
     parser.add_argument("-D", "--device", default="cuda")
     parser.add_argument("-f", "--force", action="store_true")
