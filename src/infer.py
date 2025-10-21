@@ -32,12 +32,16 @@ def path_for(dataset, base_path, subset="val"):
 def make_path(fname, ident, dataset, base_path):
     if ident:
         base_fn, ext = os.path.splitext(fname)
-        fname = base_fn + "-" + ident + ext
-    return os.path.join(base_path, dataset, fname)
+        rest = (ident, fname)
+    else:
+        rest = (fname,)
+    return os.path.join(base_path, dataset, *rest)
 
 
-def make_dirs(dataset, base_path=None):
+def make_dirs(dataset, base_path=None, *paths):
     os.makedirs(os.path.join(base_path, dataset), exist_ok=True)
+    for path in paths:
+        os.makedirs(os.path.join(base_path, dataset, path), exist_ok=True)
 
 
 @lru_cache
@@ -62,21 +66,21 @@ def get_images(dataset, base_path, out_path, subset="val", num_samples=None, see
     if masks[0].ndim == 3 and masks[0].shape[0] == 4:
         masks = [m[:-1] for m in masks]
 
-    make_dirs(dataset, out_path)
+    make_dirs(dataset, out_path, "photos", "annotations")
     for i, (img, mask, (img_fn, ann_fn)) in enumerate(zip(imgs, masks, fns)):
         if img_fn.endswith(".jpg") or img_fn.endswith(".jpeg"):
             write_jpeg(
                 convert_image_dtype(img, torch.uint8),
-                make_path_f(os.path.split(img_fn)[1], "")
+                make_path_f(os.path.split(img_fn)[1], "photos")
             )
         else:
             write_png(
                 convert_image_dtype(img, torch.uint8),
-                make_path_f(os.path.split(img_fn)[1], "")
+                make_path_f(os.path.split(img_fn)[1], "photos")
             )
         write_png(
             convert_image_dtype(mask, torch.uint8),
-            make_path_f(os.path.split(ann_fn)[1], "")
+            make_path_f(os.path.split(ann_fn)[1], "annotations")
         )
 
     imgs = convert_image_dtype(torch.stack(imgs), torch.float)
@@ -186,7 +190,7 @@ def main(args):
         model_name = os.path.split(os.path.split(model_fn)[0])[1]
         if not model_name.endswith("pretrained"):
             model_name += "-scratch"
-        make_dirs(run["dataset"], args.out_path)
+        make_dirs(run["dataset"], args.out_path, model_name)
         make_path_f = partial(
             make_path, dataset=run["dataset"], base_path=args.out_path,
         )
