@@ -145,12 +145,18 @@ def segment(model, image, in_shape, out_shape, device):
         for i, tile in enumerate(tiles):
             orig_shape = None
             if in_shape != tile.shape[1:] and in_shape == out_shape:
+                # pad image
                 orig_shape = tile.shape[1:]
                 tile = center_crop(tile, in_shape)
             tile = normalize(tile.to(device), **IMAGENET_NORM).unsqueeze(0)
             output = model(tile)
             if orig_shape:
+                # crop image
                 output = center_crop(output, orig_shape)
+            elif output.shape[2:] == (484, 500):
+                # hack for unet/GNRes
+                output = center_crop(output, (480, 500))
+
             predicted = (output >= 0).squeeze(0).squeeze(0)
             output_tiles.append(predicted)
 
