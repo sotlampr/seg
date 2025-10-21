@@ -53,9 +53,10 @@ class Model(nn.Module):
 
 def new(model_name, pretrained=False, optimize=True):
 
-    model_kwargs = models[model_name]
-    weights_id = model_kwargs.pop("weights")
+    model_kwargs = models[model_name].copy()
 
+    # 'weights' is only for pretrained init; SegRoot must not see it
+    weights_id = model_kwargs.pop("weights", None)
     model = Model(SegRoot(**model_kwargs, num_classes=1))
 
     if pretrained:
