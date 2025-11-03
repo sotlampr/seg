@@ -1,4 +1,5 @@
 #!/usr/bin/env python3
+"""Generate a csv from training outputs."""
 import argparse
 import csv
 import re
@@ -17,11 +18,13 @@ out_keys = {
 }
 
 
-parser = argparse.ArgumentParser()
-parser.add_argument("checkpoint", nargs="+")
+parser = argparse.ArgumentParser(
+    description="Generate a csv with results from training outputs.")
+parser.add_argument("checkpoint", nargs="+", help="checkpoint_best.pth paths")
 args = parser.parse_args()
 
 writer = csv.DictWriter(sys.stdout, fieldnames=sorted(list(out_keys)))
+writer.writeheader()
 
 for fn in args.checkpoint:
     path = os.path.dirname(fn)
