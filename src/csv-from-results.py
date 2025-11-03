@@ -61,10 +61,13 @@ for fn in args.checkpoint:
                         meta[k] = int(v) if v.isdigit() else bool(v)
 
     train_fn = os.path.join(path, "results")
+    epoch = 1
     if not os.path.exists(train_fn):
         print(f"WARNING: results does not exist in {path}", file=sys.stderr)
     else:
         with open(train_fn, newline=None) as fp:
             reader = csv.DictReader(fp, delimiter="\t")
             for row in reader:
+                row["epoch"] = epoch
                 writer.writerow({**meta, **row})
+                epoch += 1
