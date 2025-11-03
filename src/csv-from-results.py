@@ -30,6 +30,7 @@ for fn in args.checkpoint:
     path = os.path.dirname(fn)
     parent_dir = os.path.basename(path)
     meta = re.match(directory_regexp, parent_dir).groupdict()
+    print(meta["pretrained"])
     meta["pretrained"] = bool(meta["pretrained"])
 
     meta_fn = os.path.join(path, "meta")
@@ -58,7 +59,8 @@ for fn in args.checkpoint:
                     if (x := re.findall(r"\d*\.\d+", v)):
                         meta[k] = float(x[0])
                     else:
-                        meta[k] = int(v) if v.isdigit() else bool(v)
+                        meta[k] = int(v) if v.isdigit() else \
+                            False if v == "False" else True
 
     train_fn = os.path.join(path, "results")
     epoch = 1
