@@ -163,6 +163,10 @@ for model_id, model in sorted(models.items()):
     for key in rv_keys.values():
         if key.endswith("_px"):
             key = key[:-3] + "_mm"
+        if key not in model:
+            print(f"WARNING: {key} not in {model_id}", file=sys.stderr)
+            continue
+
         x = model[key]
         y = targets[key]
         x[np.isnan(x)] = 0
