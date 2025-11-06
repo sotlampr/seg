@@ -130,6 +130,9 @@ for dn in glob.glob(os.path.join(args.base_path, "*/")):
             with open(fscore_fn, newline=None) as fp:
                 reader = csv.DictReader(fp)
                 for row in reader:
+                    if row["filename"] == "micro":
+                        models[model]["f1_micro"] = float(row["f1_score"])
+                        continue
                     idx = datasets[dataset]["index"][row["filename"]]
 
                     models[model]["f1_score"][idx] = float(row["f1_score"])
@@ -152,12 +155,11 @@ results = []
 for model_id, model in sorted(models.items()):
     targets = datasets[model["dataset"]]
 
-    # TODO check:
-    # caluclate mean f1 from model["f1_score"]
-    # correlations for features in rv_keys (targets)
+    f1s = model["f1_score"]
+    f1s = f1s[f1s != 0]
 
     out = {**args.constant, **model,
-           "mean_f1_score": np.nanmean(model["f1_score"])}
+           "f1_macro": np.nanmean(f1s)}
     del out["f1_score"]
 
     for key in rv_keys.values():
