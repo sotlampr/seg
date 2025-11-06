@@ -5,9 +5,10 @@ import glob
 import os
 import sys
 
+import torch
 from torchvision.io import read_image as read_image_
 
-from seg import f1_score
+from seg import f1_score_, tp_fp_fn
 
 
 def read_image(fn):
@@ -37,10 +38,19 @@ for model_path in glob.glob(f"{base_path}/*"):
         fn: read_image(f"{model_path}/{fn}")
         for fn in target_imgs
     }
-    losses = {
-        fn: f1_score(model_imgs[fn], target_imgs[fn]).item()
+
+    tps_fps_fns = {
+        fn: tp_fp_fn(model_imgs[fn], target_imgs[fn])
         for fn in target_imgs
     }
+
+    tps, fps, fns = torch.tensor(list(tps_fps_fns.values())).sum(0)
+
+    losses = {
+        fn: f1_score_(*args).item()
+        for fn, args in tps_fps_fns.items()
+    }
+    losses["micro"] = f1_score_(tps, fps, fns).item()
 
     with open(f"{model_path}/f1_score.csv", "w", newline=None) as fp:
         writer = csv.writer(fp)
