@@ -32,8 +32,10 @@ target_imgs = {
 for model_path in glob.glob(f"{base_path}/*"):
     if model_path.endswith("annotations") or model_path.endswith("photos"):
         continue
+
+    # tps fps fns expects logits, so we make sure 0s are negative
     model_imgs = {
-        fn: read_image(f"{model_path}/{fn}")
+        fn: read_image(f"{model_path}/{fn}") - 0.5
         for fn in target_imgs
     }
 
