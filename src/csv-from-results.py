@@ -30,7 +30,6 @@ for fn in args.checkpoint:
     path = os.path.dirname(fn)
     parent_dir = os.path.basename(path)
     meta = re.match(directory_regexp, parent_dir).groupdict()
-    print(meta["pretrained"])
     meta["pretrained"] = bool(meta["pretrained"])
 
     meta_fn = os.path.join(path, "meta")
