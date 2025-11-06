@@ -18,8 +18,6 @@ import re
 import sys
 import time
 
-import numpy as np
-from PIL import Image
 import torch
 from torch import nn
 from torch.amp import autocast
@@ -28,26 +26,8 @@ from torch.utils.data import DataLoader
 from torchvision import transforms as v2
 from torchvision.io import read_image, ImageReadMode
 import torchvision.transforms.v2.functional as TF
-from torchvision.transforms import InterpolationMode
-from torchvision.transforms.autoaugment import _apply_op as _apply_augment_op
 
-import \
-    m2f, mb_sam, rootnav, sam, samII, segmentation_pytorch, segroot, \
-    torchvision_models, unet, unet_valid  # noqa: F401 E401
-
-from common import IMAGENET_NORM
-
-
-MODULES = [
-    m2f, mb_sam, rootnav, sam, samII, segmentation_pytorch, segroot,
-    torchvision_models, unet, unet_valid
-]
-
-
-def all_models():
-    for module in MODULES:
-        for model in module.models.keys():
-            yield (module, model)
+from common import IMAGENET_NORM, all_models, load_model, torch_init
 
 
 def get_patches(input_shape, target_shape):
@@ -380,15 +360,6 @@ def f1_score(input, target):
     return f1_score_(*tp_fp_fn(input, target))
 
 
-def load_model(model_id, pretrained=False, optimize=True, models=None):
-    if models is None:
-        models = {f"{k.__name__}/{v}": (k, v) for k, v in all_models()}
-    module, model_name = models[model_id]
-    return module.new(
-        model_name, pretrained=pretrained, optimize=optimize
-    )
-
-
 if __name__ == "__main__":
     models = {f"{k.__name__}/{v}": (k, v) for k, v in all_models()}
 
@@ -417,9 +388,7 @@ if __name__ == "__main__":
     parser.add_argument("-Z", default="")
     args = parser.parse_args()
 
-    torch.backends.cudnn.benchmark = True
-    torch.use_deterministic_algorithms(False)
-    torch.set_float32_matmul_precision("high")
+    torch_init()
 
     train_dataset, eval_dataset = read_data(
         args.data_path, args.shape, args.sparse_annotations)
