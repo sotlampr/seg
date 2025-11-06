@@ -35,12 +35,12 @@ for model_path in glob.glob(f"{base_path}/*"):
 
     # tps fps fns expects logits, so we make sure 0s are negative
     model_imgs = {
-        fn: read_image(f"{model_path}/{fn}") - 0.5
+        fn: read_image(f"{model_path}/{fn}")
         for fn in target_imgs
     }
 
     tps_fps_fns = {
-        fn: tp_fp_fn(model_imgs[fn], target_imgs[fn])
+        fn: tp_fp_fn(model_imgs[fn]>0, target_imgs[fn])
         for fn in target_imgs
     }
 
