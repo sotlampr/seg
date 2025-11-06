@@ -167,6 +167,9 @@ for model_id, model in sorted(models.items()):
             key = key[:-3] + "_mm"
         if key not in model:
             print(f"WARNING: {key} not in {model_id}", file=sys.stderr)
+            out[f"{key}_pearsonr_statistic"] = np.nan
+            out[f"{key}_pearsonr_pvalue"] = np.nan
+            out[f"{key}_mean_absolute_error"] = np.nan
             continue
 
         x = model[key]

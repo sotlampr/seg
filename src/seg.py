@@ -342,8 +342,10 @@ def get_iou(input, target, eps=torch.finfo(torch.bfloat16).eps):
 
 
 def tp_fp_fn(input, target):
-    """Expects input as logits"""
-    input = (input >= 0).view(-1)
+    if input.dtype != torch.bool:
+        # assume logits
+        input = input >= 0
+    input = input.view(-1)
     target = target.bool().view(-1)
     tp = (input & target).sum()
     fp = (input & ~target).sum()
