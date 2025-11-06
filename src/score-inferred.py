@@ -6,15 +6,13 @@ import os
 import sys
 
 import torch
-from torchvision.io import read_image as read_image_
+from torchvision.io import read_image as read_image_, ImageReadMode
 
 from seg import f1_score_, tp_fp_fn
 
 
 def read_image(fn):
-    img = read_image_(fn)
-    if img.shape[0] != 1:
-        img = img.max(0).values
+    img = read_image_(fn, ImageReadMode.GRAY)
     return img.cuda()
 
 
