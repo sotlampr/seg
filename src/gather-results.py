@@ -180,6 +180,7 @@ for model_id, model in sorted(models.items()):
         out[f"{key}_pearsonr_statistic"] = float(corr.statistic)
         out[f"{key}_pearsonr_pvalue"] = float(corr.pvalue)
         out[f"{key}_mean_absolute_error"] = float(np.abs(x-y).mean())
+        out[f"{key}_sum"] = x.sum()
         del out[key]
 
     results.append(out)
