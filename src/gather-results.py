@@ -36,16 +36,23 @@ parser.add_argument("-X", "--constant", action="append",
                     default=list(), type=key_value_pairs)
 parser.add_argument("-v", "--verbose", action="store_true")
 parser.add_argument("-S", "--skip-header", action="store_true")
+parser.add_argument("-C", "--convert", action="store_true", help="Convert to mm")
 args = parser.parse_args()
 args.constant = dict(args.constant)
 
 # keys to extract from rv csv file, and our own name
 rv_keys = {
-    "Total.Root.Length.px": "total_root_length_px",
-    "Average.Diameter.px": "average_diameter_px",
-    # "Median.Diameter.px": "median_diameter_px",
-    # "Maximum.Diameter.px": "maximum_diameter_px",
-    # "Number.of.Root.Tips": "number_of_root_tips",
+    **{
+        "Total.Root.Length.mm": "total_root_length_mm",
+        "Average.Diameter.mm": "average_diameter_mm"
+    },
+    **{
+        k.format(i): v.format(i)
+        for k, v in [
+            ("Root.Length.Diameter.Range.{}.mm", "root_length_diameter_bin_{}_mm")
+        ]
+        for i in range(1, 12)
+    }
 }
 
 conversion_factors = {
@@ -137,18 +144,19 @@ for dn in glob.glob(os.path.join(args.base_path, "*/")):
 
                     models[model]["f1_score"][idx] = float(row["f1_score"])
 
-for dname, dataset in datasets.items():
-    for key in list(dataset.keys()):
-        if key.endswith("_px"):
-            dataset[key[:-3] + "_mm"] = \
-                dataset[key] / conversion_factors[dname]
+if args.convert:
+    for dname, dataset in datasets.items():
+        for key in list(dataset.keys()):
+            if key.endswith("_px"):
+                dataset[key[:-3] + "_mm"] = \
+                    dataset[key] / conversion_factors[dname]
 
-for model in models.values():
-    for key in list(model.keys()):
-        if key.endswith("_px"):
-            model[key[:-3] + "_mm"] = \
-                model[key] / conversion_factors[model["dataset"]]
-            del model[key]
+    for model in models.values():
+        for key in list(model.keys()):
+            if key.endswith("_px"):
+                model[key[:-3] + "_mm"] = \
+                    model[key] / conversion_factors[model["dataset"]]
+                del model[key]
 
 # Create output "table"
 results = []
@@ -163,27 +171,45 @@ for model_id, model in sorted(models.items()):
     del out["f1_score"]
 
     for key in rv_keys.values():
-        if key.endswith("_px"):
+        if key.endswith("_px") and args.convert:
             key = key[:-3] + "_mm"
+
         if key not in model:
             print(f"WARNING: {key} not in {model_id}", file=sys.stderr)
-            out[f"{key}_pearsonr_statistic"] = np.nan
-            out[f"{key}_pearsonr_pvalue"] = np.nan
-            out[f"{key}_mean_absolute_error"] = np.nan
+            if "_bin_" not in key:
+                out[f"{key}_pearsonr_statistic"] = np.nan
+                out[f"{key}_pearsonr_pvalue"] = np.nan
+                out[f"{key}_mean_absolute_error"] = np.nan
+            out[f"{key}_sum"] = np.nan
+            out[f"{key}_mean"] = np.nan
             continue
 
         x = model[key]
         y = targets[key]
         x[np.isnan(x)] = 0
         y[np.isnan(y)] = 0
-        corr = scipy.stats.pearsonr(x, y)
-        out[f"{key}_pearsonr_statistic"] = float(corr.statistic)
-        out[f"{key}_pearsonr_pvalue"] = float(corr.pvalue)
-        out[f"{key}_mean_absolute_error"] = float(np.abs(x-y).mean())
+
+        if "_bin_" not in key:
+            corr = scipy.stats.pearsonr(x, y)
+            out[f"{key}_pearsonr_statistic"] = float(corr.statistic)
+            out[f"{key}_pearsonr_pvalue"] = float(corr.pvalue)
+            out[f"{key}_mean_absolute_error"] = float(np.abs(x-y).mean())
+
         out[f"{key}_sum"] = x.sum()
+        out[f"{key}_mean"] = x.mean()
         del out[key]
 
     results.append(out)
 
+for dataset_name, dataset in datasets.items():
+    out = {"model": "gold_annotation"}
+    for key in rv_keys.values():
+        if key.endswith("_px") and args.convert:
+            key = key[:-3] + "_mm"
+        x = dataset[key]
+        out[f"{key}_sum"] = x.sum()
+        out[f"{key}_mean"] = x.mean()
+    results.append(out)
+        
 df = pd.DataFrame.from_dict(results)
 df.to_csv(sys.stdout, header=not args.skip_header, index=False)
