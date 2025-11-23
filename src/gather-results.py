@@ -202,7 +202,7 @@ for model_id, model in sorted(models.items()):
     results.append(out)
 
 for dataset_name, dataset in datasets.items():
-    out = {"model": "gold_annotation", "dataset": dataset}
+    out = {"model": "gold_annotation", "dataset": dataset_name}
     for key in rv_keys.values():
         if key.endswith("_px") and args.convert:
             key = key[:-3] + "_mm"
