@@ -201,15 +201,16 @@ for model_id, model in sorted(models.items()):
 
     results.append(out)
 
-for dataset_name, dataset in datasets.items():
-    out = {"model": "gold_annotation", "dataset": dataset_name}
-    for key in rv_keys.values():
-        if key.endswith("_px") and args.convert:
-            key = key[:-3] + "_mm"
-        x = dataset[key]
-        out[f"{key}_sum"] = x.sum()
-        out[f"{key}_mean"] = x.mean()
-    results.append(out)
+if not args.skip_header:
+    for dataset_name, dataset in datasets.items():
+        out = {"model": "gold_annotation", "dataset": dataset_name}
+        for key in rv_keys.values():
+            if key.endswith("_px") and args.convert:
+                key = key[:-3] + "_mm"
+            x = dataset[key]
+            out[f"{key}_sum"] = x.sum()
+            out[f"{key}_mean"] = x.mean()
+        results.append(out)
         
 df = pd.DataFrame.from_dict(results)
 df.to_csv(sys.stdout, header=not args.skip_header, index=False)
