@@ -40,18 +40,20 @@ parser.add_argument("-C", "--convert", action="store_true", help="Convert to mm"
 args = parser.parse_args()
 args.constant = dict(args.constant)
 
+unit = "mm" if args.convert else "px"
+
 # keys to extract from rv csv file, and our own name
 rv_keys = {
     **{
-        "Total.Root.Length.mm": "total_root_length_mm",
-        "Average.Diameter.mm": "average_diameter_mm"
+        f"Total.Root.Length.{unit}": f"total_root_length_{unit}",
+        f"Average.Diameter.{unit}": f"average_diameter_{unit}"
     },
     **{
-        k.format(i): v.format(i)
+        k.format(i, unit): v.format(i, unit)
         for k, v in [
-            ("Root.Length.Diameter.Range.{}.mm", "root_length_diameter_bin_{}_mm")
+            ("Root.Length.Diameter.Range.{}.{}", "root_length_diameter_bin_{}_{}")
         ]
-        for i in range(1, 12)
+        for i in range(1, 6)
     }
 }
 
@@ -147,13 +149,13 @@ for dn in glob.glob(os.path.join(args.base_path, "*/")):
 if args.convert:
     for dname, dataset in datasets.items():
         for key in list(dataset.keys()):
-            if key.endswith("_px"):
+            if key.endswith("_px") and args.convert:
                 dataset[key[:-3] + "_mm"] = \
                     dataset[key] / conversion_factors[dname]
 
     for model in models.values():
         for key in list(model.keys()):
-            if key.endswith("_px"):
+            if key.endswith("_px") and args.convert:
                 model[key[:-3] + "_mm"] = \
                     model[key] / conversion_factors[model["dataset"]]
                 del model[key]
