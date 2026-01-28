@@ -1,18 +1,18 @@
 # seg: tools for evaluating binary semantic image segmentation models
 
-Features:
-  - 5+1 frameworks:
-    - [torchvision](https://pytorch.org/vision/main/models.html)
-    - [segmentation_models.pytorch](https://github.com/qubvel-org/segmentation_models.pytorch)
-    - [Mask2Former](https://github.com/facebookresearch/Mask2Former)
-    - [segment-anything (SAM)](https://github.com/facebookresearch/segment-anything)
-    - [MobileSAM](https://github.com/ChaoningZhang/MobileSAM)
-    - [segmentation_of_roots_in_soil_with_unet](https://github.com/Abe404/segmentation_of_roots_in_soil_with_unet)
-  - Automatic mixed precision training
-  - On-the-fly loading images from disk for training
-  - Auto-patchification and some augmentation
-  - 876 LOC and a 6-line requirements.txt file
-  - Almost 300 model \& backbone combinations
+- Frameworks & Models:
+  - [torchvision](https://pytorch.org/vision/main/models.html)
+  - [segmentation_models.pytorch](https://github.com/qubvel-org/segmentation_models.pytorch)
+  - [Mask2Former](https://github.com/facebookresearch/Mask2Former)
+  - [segment-anything (SAM)](https://github.com/facebookresearch/segment-anything)
+  - [SAM2](https://github.com/facebookresearch/sam2)
+  - [MobileSAM](https://github.com/ChaoningZhang/MobileSAM)
+  - [UNet (segmentation_of_roots_in_soil_with_unet)](https://github.com/Abe404/segmentation_of_roots_in_soil_with_unet)
+  - [RootNav 2.0](https://github.com/robail-yasrab/RootNav-2.0)
+  - [segroot](https://github.com/wtwtwt0330/SegRoot)
+- Automatic mixed precision training
+- On-the-fly loading images from disk for training
+- Support for arbitrary patch sizes and some augmentation
 
 # Installation
 Some of the included packages have different requirements. E.g. in an Ubuntu box,
@@ -64,21 +64,29 @@ Then in the output directory we get:
 - `*-pred.png`: The prediction of the model for the sample image
 - `*-true.png`: The ground truth for the segmentation
 - `checkpoint_best.pth`: The best model
+- `config`: The training hyper-parameters
 
 # Command-line options
 ```
 options:
   -h, --help            show this help message and exit
-  -C, --clip-gradients
-  -P, --pretrained
   -a LEARNING_RATE, --learning-rate LEARNING_RATE
   -b BATCH_SIZE, --batch-size BATCH_SIZE
   -e EPOCHS, --epochs EPOCHS
   -f EVAL_FREQUENCY, --eval-frequency EVAL_FREQUENCY
   -j NUM_WORKERS, --num-workers NUM_WORKERS
   -m, --mixed-precision
+  -p PATIENCE, --patience PATIENCE
   -o CHECKPOINT_DIR, --checkpoint-dir CHECKPOINT_DIR
   -s SHAPE SHAPE, --shape SHAPE SHAPE
+  -t TIMEOUT, --timeout TIMEOUT
+  -w WARMUP_STEPS_MUL, --warmup-steps-mul WARMUP_STEPS_MUL
+  -A, --sparse-annotations
+  -C, --clip-gradients
+  -N, --no-optimizations
+  -P, --pretrained
+  -S, --save-val-images
+  -X, --extra-val-metrics
   -w WARMUP_STEPS, --warmup-steps WARMUP_STEPS
 ```
 
