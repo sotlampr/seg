@@ -4,4 +4,8 @@ __pycache__/
 *.png
 env/
 pretrained/
+src/.meta-cache
+
 Mask2Former
+RootNav-2.0
+SegRoot
