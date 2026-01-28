@@ -1,12 +1,15 @@
 #!/usr/bin/env python
 """
-Copyright (C) 2025  Sotiris Lamprinidis, Abraham Smith
+Copyright (C) 2025, 2026  Sotiris Lamprinidis, Abraham Smith
 
 This program is free software and all terms of the GNU General Public License
 version 3 as published by the Free Software Foundation apply. See the LICENSE
 file in the root directory of the project or <https://www.gnu.org/licenses/>
 for more details.
-
+----------
+Infer segmentations for one or more models.
+The models are assumed to reside in a directory matching
+($PACKAGE)-($MODEL_VARIANT)-($DATASET)-($SEED)(-pretrained)?
 """
 import argparse
 from functools import partial, lru_cache
@@ -45,7 +48,8 @@ def make_dirs(dataset, base_path=None, *paths):
 
 
 @lru_cache
-def get_images(dataset, base_path, out_path, subset="val", num_samples=None, seed=42):
+def get_images(dataset, base_path, out_path, subset="val", num_samples=None,
+               seed=42):
     """ Read images and annotations for a dataset, cache, and save them
         to out_path.
     """
@@ -244,7 +248,8 @@ if __name__ == "__main__":
     parser.add_argument("model_checkpoints", nargs="+")
     parser.add_argument("-d", "--data-path", default="../data")
     parser.add_argument("-o", "--out-path", default="../inferred")
-    parser.add_argument("-s", "--subset", default="val", choices=("train", "val", "test"))
+    parser.add_argument("-s", "--subset", default="val",
+                        choices=("train", "val", "test"))
     parser.add_argument("-n", "--num-samples", type=int)
     parser.add_argument("-D", "--device", default="cuda")
     parser.add_argument("-f", "--force", action="store_true")

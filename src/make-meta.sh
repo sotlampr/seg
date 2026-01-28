@@ -1,7 +1,13 @@
 #!/bin/bash
+# Copyright (C) 2025, 2026  Sotiris Lamprinidis
+# 
+# This program is free software and all terms of the GNU General Public License
+# version 3 as published by the Free Software Foundation apply. See the LICENSE
+# file in the root directory of the project or <https://www.gnu.org/licenses/>
+# for more details.
+# ----------
 # Create a ./meta file on every directory in the argument list
 # with model size, num. parameters, and flops.
-
 DATA_PATH=${DATA_PATH:=../../seg_root_in_soil_next/data}
 
 for model_path in $@; do

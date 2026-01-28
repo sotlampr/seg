@@ -1,5 +1,15 @@
 #!/usr/bin/env python3
-"""Generate a csv from training outputs."""
+"""
+Copyright (C) 2025, 2026  Sotiris Lamprinidis
+
+This program is free software and all terms of the GNU General Public License
+version 3 as published by the Free Software Foundation apply. See the LICENSE
+file in the root directory of the project or <https://www.gnu.org/licenses/>
+for more details.
+----------
+Generate a csv from training outputs. Accepts one or more paths containing
+the files `config`, `results`, and `meta`, as saved by a seg.py training run.
+"""
 import argparse
 import csv
 import re
@@ -20,14 +30,13 @@ out_keys = {
 
 parser = argparse.ArgumentParser(
     description="Generate a csv with results from training outputs.")
-parser.add_argument("checkpoint", nargs="+", help="checkpoint_best.pth paths")
+parser.add_argument("path", nargs="+", help="training output paths")
 args = parser.parse_args()
 
 writer = csv.DictWriter(sys.stdout, fieldnames=sorted(list(out_keys)))
 writer.writeheader()
 
-for fn in args.checkpoint:
-    path = os.path.dirname(fn)
+for path in args.paths:
     parent_dir = os.path.basename(path)
     meta = re.match(directory_regexp, parent_dir).groupdict()
     meta["pretrained"] = bool(meta["pretrained"])

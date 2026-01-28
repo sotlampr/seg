@@ -1,11 +1,10 @@
 """
-Copyright (C) 2025  Sotiris Lamprinidis
+Copyright (C) 2025, 2026  Sotiris Lamprinidis
 
 This program is free software and all terms of the GNU General Public License
 version 3 as published by the Free Software Foundation apply. See the LICENSE
 file in the root directory of the project or <https://www.gnu.org/licenses/>
 for more details.
-
 """
 import torch
 import warnings

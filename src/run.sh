@@ -1,4 +1,16 @@
 #!/bin/bash
+# Copyright (C) 2025, 2026  Sotiris Lamprinidis
+# 
+# This program is free software and all terms of the GNU General Public License
+# version 3 as published by the Free Software Foundation apply. See the LICENSE
+# file in the root directory of the project or <https://www.gnu.org/licenses/>
+# for more details.
+# ----------
+# Script to run all experiments from the study [TODO: paper title].
+# Example:
+#   DATASETS="chicory cotton" LEARNING_RATE=1e-4 ./run,sh
+# Or for specific models:
+#   ./run,sh m2f/R50 m2f/swin-small
 set -e
 
 # These variables can be overriden in the calling environment
@@ -136,7 +148,6 @@ batch_size () {
     *)
       echo 16;;
     esac
-
 }
 
 shape () {

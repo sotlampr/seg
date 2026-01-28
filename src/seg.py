@@ -1,12 +1,11 @@
 #!/usr/bin/env python
 """
-Copyright (C) 2025  Sotiris Lamprinidis
+Copyright (C) 2025, 2026  Sotiris Lamprinidis
 
 This program is free software and all terms of the GNU General Public License
 version 3 as published by the Free Software Foundation apply. See the LICENSE
 file in the root directory of the project or <https://www.gnu.org/licenses/>
 for more details.
-
 """
 import argparse
 from functools import partial
@@ -387,7 +386,6 @@ if __name__ == "__main__":
     parser.add_argument("-P", "--pretrained", action="store_true")
     parser.add_argument("-S", "--save-val-images", action="store_true")
     parser.add_argument("-X", "--extra-val-metrics", action="store_true")
-    parser.add_argument("-Z", default="")
     args = parser.parse_args()
 
     torch_init()
@@ -418,9 +416,10 @@ if __name__ == "__main__":
         args.eval_frequency = len(train_loader.dataset)
 
     eval_freq = args.eval_frequency // args.batch_size
-    # Known bug
-    # if args.eval_frequency % args.batch_size:
-    #     eval_freq += 1
+
+    if args.eval_frequency % args.batch_size:
+        eval_freq += 1
+
     warmup_st = args.warmup_steps_mul * eval_freq
 
     if not os.path.exists(args.checkpoint_dir):

@@ -1,4 +1,15 @@
 #!/usr/bin/env python3
+"""
+Copyright (C) 2025, 2026  Sotiris Lamprinidis
+
+This program is free software and all terms of the GNU General Public License
+version 3 as published by the Free Software Foundation apply. See the LICENSE
+file in the root directory of the project or <https://www.gnu.org/licenses/>
+for more details.
+----------
+Aggregate RVE outputs for manual annotations and different datasets.
+"""
+
 import argparse
 import csv
 import glob
@@ -36,7 +47,8 @@ parser.add_argument("-X", "--constant", action="append",
                     default=list(), type=key_value_pairs)
 parser.add_argument("-v", "--verbose", action="store_true")
 parser.add_argument("-S", "--skip-header", action="store_true")
-parser.add_argument("-C", "--convert", action="store_true", help="Convert to mm")
+parser.add_argument("-C", "--convert", action="store_true",
+                    help="Convert to mm")
 args = parser.parse_args()
 args.constant = dict(args.constant)
 
@@ -51,7 +63,8 @@ rv_keys = {
     **{
         k.format(i, unit): v.format(i, unit)
         for k, v in [
-            ("Root.Length.Diameter.Range.{}.{}", "root_length_diameter_bin_{}_{}")
+            ("Root.Length.Diameter.Range.{}.{}",
+             "root_length_diameter_bin_{}_{}")
         ]
         for i in range(1, 202)
     }
@@ -213,6 +226,6 @@ if not args.skip_header:
             out[f"{key}_sum"] = x.sum()
             out[f"{key}_mean"] = x.mean()
         results.append(out)
-        
+
 df = pd.DataFrame.from_dict(results)
 df.to_csv(sys.stdout, header=not args.skip_header, index=False)
