@@ -1,9 +1,21 @@
 #!/usr/bin/env python
 """
-TODO: description
+Copyright (C) 2025, 2026  Sotiris Lamprinidis
+
+This program is free software and all terms of the GNU General Public License
+version 3 as published by the Free Software Foundation apply. See the LICENSE
+file in the root directory of the project or <https://www.gnu.org/licenses/>
+for more details.
+----------
+Download the dataset from:
+    Weihuang Xu, Guohao Yu, Yiming Cui, Romain Gloaguen, Alina Zare, Jason
+    Bonnette, Joel Reyes-Cabrera, Ashish Rajurkar, Diane Rowland, Roser
+    Matamala, Julie D. Jastrow, Thomas E.  Juenger, and Felix B. Fritschi.
+    PRMI: A Dataset of Minirhizotron Images for Diverse Plant Root Study,
+    January 2022.
+
+Dataset splits as per the original.
 """
-import urllib.request
-import io
 import zipfile
 import tempfile
 import os

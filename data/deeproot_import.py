@@ -1,22 +1,26 @@
 #!/usr/bin/env python
 """
+Copyright (C) 2025, 2026  Sotiris Lamprinidis
+
+This program is free software and all terms of the GNU General Public License
+version 3 as published by the Free Software Foundation apply. See the LICENSE
+file in the root directory of the project or <https://www.gnu.org/licenses/>
+for more details.
+----------
 Five seasons with DeepRootLab: A unique facility for easier deep root research
-in the field
-https://www.biorxiv.org/content/10.1101/2025.04.20.649645v1
+in the field (https://www.biorxiv.org/content/10.1101/2025.04.20.649645v1)
 
 Two outputs:
     deeproot_ann: Sparse annotations from RootPainter
-    deeproot_seg: Full segmentations (produced by the model?)
+    deeproot_seg: Full segmentations produced by the model during training
 
-
-Export PYTHONHASHSEED=42 to generate our splits.
+Splits datasets into roughly 60/20/20 train/val/test splits based on the
+image filename hashes. export PYTHONHASHSEED=42 to generate our splits.
 """
-import urllib.request
 import io
 import zipfile
 import tempfile
 import os
-import re
 
 from utils import (
     check_equal_annotations_photos,
@@ -101,8 +105,6 @@ with tempfile.TemporaryFile("w+b") as fo:
                     else:
                         segmentations_samples[img_id] = "test"
                         zimg_to_disk(fm, entry, NAME_SEG, "test", ct, name)
-
-
 
         ct = "photos"
         with zipfile.ZipFile(
