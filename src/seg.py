@@ -386,7 +386,6 @@ if __name__ == "__main__":
     parser.add_argument("-P", "--pretrained", action="store_true")
     parser.add_argument("-S", "--save-val-images", action="store_true")
     parser.add_argument("-X", "--extra-val-metrics", action="store_true")
-    parser.add_argument("-Z", default="")
     args = parser.parse_args()
 
     torch_init()
