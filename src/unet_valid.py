@@ -236,7 +236,7 @@ class UpBlockRes(nn.Module):
     def forward(self, x, down_out):
         out = self.conv1(x)
         cropped = center_crop(down_out, out.shape[2:])
-        out = cropped + out # residual
+        out = cropped + out  # residual
         out = self.conv2(out)
         out = self.conv3(out)
         return out

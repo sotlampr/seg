@@ -1,4 +1,16 @@
 #!/bin/bash
+# Copyright (C) 2025, 2026  Sotiris Lamprinidis
+# 
+# This program is free software and all terms of the GNU General Public License
+# version 3 as published by the Free Software Foundation apply. See the LICENSE
+# file in the root directory of the project or <https://www.gnu.org/licenses/>
+# for more details.
+# ----------
+# Script to run all experiments from the study [TODO: paper title].
+# Example:
+#   DATASETS="chicory cotton" LEARNING_RATE=1e-4 ./run,sh
+# Or for specific models:
+#   ./run,sh m2f/R50 m2f/swin-small
 set -e
 
 # These variables can be overrided in the calling environment
@@ -7,6 +19,7 @@ DATASETS=${DATASETS:=chicory cotton grassland papaya peanut sesame sunflower swi
 NUM_RUNS=${NUM_RUNS:=2}
 OUTDIR=${OUTDIR:=../results}
 NUM_WORKERS=${NUM_WORKERS:=20}
+LEARNING_RATE=${LEARNING_RATE:=1e-3}
 
 # The models to run can be overrided by passing positional arguments
 TODO="\
@@ -98,53 +111,6 @@ batch_size () {
     esac
 }
 
-learning_rate () {
-  run_id=$1
-  case $run_id in
-    m2f/R50-deeproot_ann-*|\
-    m2f/swin-small-deeproot_ann-*|\
-    m2f/swin-tiny-deeproot_ann-*|\
-    samII/hiera-base_plus-cotton-false|\
-    samII/hiera-base_plus-deeproot_ann-*|\
-    samII/hiera-base_plus-sesame-false|\
-    samII/hiera-small-cotton-false|\
-    samII/hiera-small-deeproot_ann-*|\
-    samII/hiera-small-sesame-false|\
-    segmentation_pytorch/manet-inceptionv4-deeproot_ann-false|\
-    segmentation_pytorch/manet-resnet50-deeproot_ann-false|\
-    segroot/w8d5-deeproot_ann-false|\
-    unet_valid/GN-deeproot_ann-false|\
-    unet_valid/GNRes-deeproot_ann-false)
-      echo "nan";;
-    mb_sam/vit_t-cotton-false|\
-    segroot-w64d4-cotton-*)
-      echo 1e-2;;
-    m2f/R50-deeproot_ann-true|\
-    m2f/swin-small-deeproot_ann-true|\
-    m2f/swin-tiny-deeproot_ann-true|\
-    mb_sam/vit_t-deeproot_ann-false|\
-    rootnav/hourglass-deeproot_ann-false|\
-    samII/hiera-base_plus-deeproot_ann-true|\
-    samII/hiera-base_plus-switchgrass-false|\
-    samII/hiera-small-deeproot_ann-true|\
-    segmentation_pytorch/deeplabv3+-resnet50-deeproot_ann-false|\
-    segmentation_pytorch/linknet-inceptionv4-deeproot_ann-false|\
-    segmentation_pytorch/manet-resnet50-deeproot_ann-true|\
-    segmentation_pytorch/segformer-mit_b1-deeproot_ann-*|\
-    segmentation_pytorch/segformer-mit_b2-deeproot_ann-*|\
-    segmentation_pytorch/segformer-mit_b3-deeproot_ann-*|\
-    segmentation_pytorch/unet++-inceptionv4-deeproot_ann-false|\
-    segmentation_pytorch/unet++-resnet50-deeproot_ann-false|\
-    segroot/w16d4-deeproot_ann-false|\
-    segroot/w32d5-deeproot_ann-false|\
-    segroot/w64d4-deeproot_ann-false|\
-    torchvision_models/deeplabv3-resnet50-deeproot_ann-false)
-      echo 1e-4;;
-    *)
-      echo 1e-3;;
-    esac
-}
-
 shape () {
   model=$1
   case $model in
@@ -191,7 +157,7 @@ for i in $(seq 1 $NUM_RUNS); do
         fi
 
         bs=$(batch_size $model-$dataset-$pretrain)
-        lr=$(learning_rate $model-$dataset-$pretrain)
+        lr=$LEARNING_RATE
         if test $lr = "nan"; then continue; fi
         s=$(shape $model)
           

@@ -5,7 +5,6 @@ This program is free software and all terms of the GNU General Public License
 version 3 as published by the Free Software Foundation apply. See the LICENSE
 file in the root directory of the project or <https://www.gnu.org/licenses/>
 for more details.
-
 """
 import torch
 import torch.nn.functional as F
@@ -14,7 +13,7 @@ import torchvision.models.segmentation as seg_models
 
 models = {
     "deeplabv3-mobilenet_v3_large":
-        seg_models.DeepLabV3_MobileNet_V3_Large_Weights.COCO_WITH_VOC_LABELS_V1,
+        seg_models.DeepLabV3_MobileNet_V3_Large_Weights.COCO_WITH_VOC_LABELS_V1,  # noqa: E501
     "deeplabv3-resnet50":
         seg_models.DeepLabV3_ResNet50_Weights.COCO_WITH_VOC_LABELS_V1,
     "deeplabv3-resnet101":
