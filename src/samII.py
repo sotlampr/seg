@@ -58,7 +58,7 @@ class Model(nn.Module):
             )
         ][::-1]
         features = {"image_embed": feats[-1], "high_res_feats": feats[:-1]}
-        zero_prompt = True
+        zero_prompt = False
         if zero_prompt:
             # just provide (0, 0) as the point of query
             points = torch.zeros((x.size(0), 1, 2), device=x.device)
@@ -79,7 +79,7 @@ class Model(nn.Module):
             sparse_prompt_embeddings=sparse_emb,
             dense_prompt_embeddings=dense_emb,
             multimask_output=False,
-            repeat_image=False,
+            repeat_image=not zero_prompt,
             high_res_features=features["high_res_feats"],
         )
 
