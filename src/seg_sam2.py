@@ -12,10 +12,11 @@ from torchvision.transforms.v2.functional import pad, center_crop, resize
 
 from sam2.build_sam import build_sam2
 
-from common import IMAGENET_MIN
-from utils import check_for_file, get_pretrained_fname
-upstream_url = "https://dl.fbaipublicfiles.com/segment_anything_2"
+from seg_common import IMAGENET_MIN
+from seg_utils import check_for_file, get_pretrained_fname
 
+
+upstream_url = "https://dl.fbaipublicfiles.com/segment_anything_2"
 
 models = {
     "hiera-tiny": ("092824", "sam2.1_hiera_tiny.pt", "t"),

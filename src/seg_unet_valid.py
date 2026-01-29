@@ -28,7 +28,7 @@ import torch
 from torch import nn
 from torchvision.transforms.v2.functional import center_crop
 
-from utils import check_for_file, get_pretrained_fname
+from seg_utils import check_for_file, get_pretrained_fname
 
 
 class DownBlock(nn.Module):

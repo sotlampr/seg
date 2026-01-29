@@ -24,7 +24,7 @@ from torchvision.io import decode_image, write_png, write_jpeg
 from torchvision.transforms.v2.functional import \
     center_crop, convert_image_dtype, normalize, pad
 
-from common import \
+from seg_common import \
     IMAGENET_NORM, all_models, expand_filename, load_model, torch_init
 
 

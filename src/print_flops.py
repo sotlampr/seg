@@ -12,20 +12,7 @@ import sys
 
 from calflops import calculate_flops
 
-import \
-    m2f, mb_sam, rootnav, sam, samII, segmentation_pytorch, segroot, \
-    torchvision_models, unet, unet_valid  # noqa: F401 E401
-
-MODULES = [
-    m2f, mb_sam, rootnav, sam, samII, segmentation_pytorch, segroot,
-    torchvision_models, unet, unet_valid
-]
-
-
-def all_models():
-    for module in MODULES:
-        for model in module.models.keys():
-            yield (module, model)
+from seg_common import all_models
 
 
 def analyze_model(model, input_shape):

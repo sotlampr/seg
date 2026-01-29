@@ -7,27 +7,27 @@ file in the root directory of the project or <https://www.gnu.org/licenses/>
 for more details.
 """
 import torch
-import warnings
-
 from torch import nn
 from torchvision.transforms.v2.functional import pad, center_crop, resize
 
-with warnings.catch_warnings(action="ignore"):
-    from mobile_sam import build_sam_vit_t
+import segment_anything
 
-from common import IMAGENET_MIN
-from utils import check_for_file, get_pretrained_fname
+from seg_common import IMAGENET_MIN
+from seg_utils import check_for_file, get_pretrained_fname
 
+
+upstream_url = \
+    "https://dl.fbaipublicfiles.com/segment_anything"
 
 models = {
-    "vit_t": ("mobile_sam.pt",)
+    "vit-base": ("vit_b", "01ec64.pth",),
+    "vit-large": ("vit_l", "0b3195.pth",),
+    "vit-huge": ("vit_h", "4b8939.pth",)
 }
 
-url = "https://drive.google.com/file/d/1dE-YAG-1mFCBmao2rHDp0n-PP4eH7SjE/view"
 
-
-def get_url(model_id, weights_ext=None):
-    return url
+def get_url(model_id, weights_ext):
+    return f"{upstream_url}/sam_{model_id}_{weights_ext}"
 
 
 class Model(nn.Module):
@@ -58,10 +58,11 @@ class Model(nn.Module):
 
 
 def new(model_name, pretrained=False, optimize=True):
-    weights_fname, *_ = models[model_name]
+    model_id, weights_ext = models[model_name]
+    fn = getattr(segment_anything, f"build_sam_{model_id}")
     if pretrained:
-        checkpoint = get_pretrained_fname(weights_fname)
+        checkpoint = get_pretrained_fname(f"sam_{model_id}_{weights_ext}")
     else:
         checkpoint = None
-    check_for_file(checkpoint, get_url, "mb_sam", weights_fname)
-    return Model(build_sam_vit_t(checkpoint=checkpoint), optimize=optimize)
+    check_for_file(checkpoint, get_url, model_id, weights_ext)
+    return Model(fn(checkpoint=checkpoint), optimize=optimize)

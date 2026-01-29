@@ -12,11 +12,12 @@ import torch
 from torch import nn
 from torchvision.transforms.v2.functional import resize
 
-from utils import check_for_file, get_pretrained_fname
+from seg_common import package_source_path
+from seg_utils import check_for_file, get_pretrained_fname
 
-sys.path.insert(0, "../RootNav-2.0/training")
+sys.path.insert(0, f"{package_source_path}/deps/RootNav-2.0/training")
 from rootnav2.hourglass import HourglassNet, Bottleneck  # noqa: E402
-sys.path.remove("../RootNav-2.0/training")
+sys.path.remove(f"{package_source_path}/deps/RootNav-2.0/training")
 
 upstream_url = \
     "https://cvl.cs.nott.ac.uk/resources/trainedmodels/"

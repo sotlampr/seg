@@ -11,11 +11,12 @@ import sys
 import torch
 from torch import nn
 
-from utils import check_for_file, get_pretrained_fname
+from seg_common import package_source_path
+from seg_utils import check_for_file, get_pretrained_fname
 
-sys.path.insert(0, "../SegRoot/code")
+sys.path.insert(0, f"{package_source_path}/deps/SegRoot/code")
 from model import SegRoot  # noqa: E402
-sys.path.remove("../SegRoot/code")
+sys.path.remove(f"{package_source_path}/deps/SegRoot/code")
 
 models = {
     "w8d5": {

@@ -19,29 +19,29 @@ else
 fi
 
 echo "$(tput bold)===> Installing Mask2Former$(tput sgr0)"
-if test -d ./Mask2Former; then
+if test -d ./src/deps/Mask2Former; then
   echo "$(tput bold)=====> Already installed$(tput sgr0)"
 else
-  git clone 'https://github.com/facebookresearch/Mask2Former.git'
-  pip install -r Mask2Former/requirements.txt
+  git -C src/deps/ clone 'https://github.com/facebookresearch/Mask2Former.git'
+  pip install -r src/deps/Mask2Former/requirements.txt
   echo "$(tput bold)===> Compiling mask2former kernels$(tput sgr0)"
-  pushd Mask2Former/mask2former/modeling/pixel_decoder/ops
+  pushd src/deps/Mask2Former/mask2former/modeling/pixel_decoder/ops
   sh make.sh
   popd
 fi
 
 
 echo "$(tput bold)===> Installing RootNav$(tput sgr0)"
-if test -d ./RootNav-2.0; then
+if test -d ./src/deps/RootNav-2.0; then
   echo "$(tput bold)=====> Already installed$(tput sgr0)"
 else
-  git clone https://github.com/robail-yasrab/RootNav-2.0/
-  pip install -r RootNav-2.0/inference/requirements.txt
+  git -C src/deps/ clone https://github.com/robail-yasrab/RootNav-2.0/
+  pip install -r src/deps/RootNav-2.0/inference/requirements.txt
 fi
 
 echo "$(tput bold)===> Installing SegRoot$(tput sgr0)"
-if test -d ./SegRoot; then
+if test -d ./src/deps/SegRoot; then
   echo "$(tput bold)=====> Already installed$(tput sgr0)"
 else
-  git clone https://github.com/wtwtwt0330/SegRoot
+  git -C src/deps/ clone https://github.com/wtwtwt0330/SegRoot
 fi

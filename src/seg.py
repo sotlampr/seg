@@ -26,7 +26,7 @@ from torchvision import transforms as v2
 from torchvision.io import read_image, ImageReadMode
 import torchvision.transforms.v2.functional as TF
 
-from common import IMAGENET_NORM, all_models, load_model, torch_init
+from seg_common import IMAGENET_NORM, load_model, get_model_dict, torch_init
 
 
 def get_patches(input_shape, target_shape):
@@ -383,31 +383,7 @@ def f1_score(input, target):
     return f1_score_(*tp_fp_fn(input, target))
 
 
-if __name__ == "__main__":
-    models = {f"{k.__name__}/{v}": (k, v) for k, v in all_models()}
-
-    parser = argparse.ArgumentParser()
-    parser.add_argument("model", choices=models)
-    parser.add_argument("datasets", nargs="+")
-    parser.add_argument("-s", "--shape", type=int, nargs=2,
-                        default=(1024, 1024))
-    parser.add_argument("-a", "--learning-rate", type=float, default=1e-4)
-    parser.add_argument("-b", "--batch-size", type=int, default=2)
-    parser.add_argument("-e", "--epochs", type=int, default=1000)
-    parser.add_argument("-f", "--eval-frequency", type=int)
-    parser.add_argument("-j", "--num-workers", type=int, default=8)
-    parser.add_argument("-m", "--mixed-precision", action="store_true")
-    parser.add_argument("-p", "--patience", type=int, default=20)
-    parser.add_argument("-o", "--checkpoint-dir", default="../out")
-    parser.add_argument("-t", "--timeout", type=int)
-    parser.add_argument("-w", "--warmup-steps-mul", type=int, default=2)
-    parser.add_argument("-C", "--clip-gradients", action="store_true")
-    parser.add_argument("-N", "--no-optimizations", action="store_true")
-    parser.add_argument("-P", "--pretrained", action="store_true")
-    parser.add_argument("-S", "--save-val-images", action="store_true")
-    parser.add_argument("-X", "--extra-val-metrics", action="store_true")
-    args = parser.parse_args()
-
+def main(args):
     data_root = os.environ.get(
         "SEG_DATA_ROOT", os.path.join(os.getcwd(), os.pardir, "data"))
     data_paths = map(lambda x: f"{data_root}/{x}", args.datasets)
@@ -447,7 +423,7 @@ if __name__ == "__main__":
 
     model = load_model(
         args.model, pretrained=args.pretrained,
-        optimize=not args.no_optimizations, models=models
+        optimize=not args.no_optimizations, models=get_model_dict()
     ).to("cuda")
 
     if not os.path.exists(args.checkpoint_dir):
@@ -494,5 +470,36 @@ if __name__ == "__main__":
     print(f"\nSTATUS: {status}: {reason}")
     print(f"GPU: {mem/1024**3:.1f} GB reserved")
     if status != "done":
-        sys.exit(1)
-    sys.exit(0)
+        return 1
+    return 0
+
+
+def cli_main():
+    models = get_model_dict()
+
+    parser = argparse.ArgumentParser()
+    parser.add_argument("model", choices=models)
+    parser.add_argument("datasets", nargs="+")
+    parser.add_argument("-s", "--shape", type=int, nargs=2,
+                        default=(1024, 1024))
+    parser.add_argument("-a", "--learning-rate", type=float, default=1e-4)
+    parser.add_argument("-b", "--batch-size", type=int, default=2)
+    parser.add_argument("-e", "--epochs", type=int, default=1000)
+    parser.add_argument("-f", "--eval-frequency", type=int)
+    parser.add_argument("-j", "--num-workers", type=int, default=8)
+    parser.add_argument("-m", "--mixed-precision", action="store_true")
+    parser.add_argument("-p", "--patience", type=int, default=20)
+    parser.add_argument("-o", "--checkpoint-dir", default="../out")
+    parser.add_argument("-t", "--timeout", type=int)
+    parser.add_argument("-w", "--warmup-steps-mul", type=int, default=2)
+    parser.add_argument("-C", "--clip-gradients", action="store_true")
+    parser.add_argument("-N", "--no-optimizations", action="store_true")
+    parser.add_argument("-P", "--pretrained", action="store_true")
+    parser.add_argument("-S", "--save-val-images", action="store_true")
+    parser.add_argument("-X", "--extra-val-metrics", action="store_true")
+    args = parser.parse_args()
+    return main(args)
+
+
+if __name__ == "__main__":
+    sys.exit(cli_main())

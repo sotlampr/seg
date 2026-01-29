@@ -17,13 +17,14 @@ from torchvision.transforms.v2.functional import resize
 from detectron2.config import get_cfg
 from detectron2.projects.deeplab import add_deeplab_config
 
-from utils import check_for_file, get_pretrained_fname
+from seg_common import package_source_path
+from seg_utils import check_for_file, get_pretrained_fname
 
-sys.path.insert(0, "../Mask2Former")
+sys.path.insert(0, f"{package_source_path}/deps/Mask2Former")
 with warnings.catch_warnings(action="ignore"):
     import mask2former  # noqa: E402
 from mask2former import MaskFormer, add_maskformer2_config  # noqa: E402
-sys.path.remove("../Mask2Former")
+sys.path.remove(f"{package_source_path}/deps/Mask2Former")
 
 
 upstream_url = \

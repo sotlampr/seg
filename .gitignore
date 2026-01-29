@@ -5,7 +5,4 @@ __pycache__/
 env/
 pretrained/
 src/.meta-cache
-
-Mask2Former
-RootNav-2.0
-SegRoot
+src/deps
