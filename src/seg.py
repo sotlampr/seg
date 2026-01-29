@@ -26,7 +26,9 @@ from torchvision import transforms as v2
 from torchvision.io import read_image, ImageReadMode
 import torchvision.transforms.v2.functional as TF
 
-from seg_common import IMAGENET_NORM, load_model, get_model_dict, torch_init
+from seg_common import \
+    DATA_ROOT, IMAGENET_NORM, \
+    load_model, get_model_dict, torch_init
 
 
 def get_patches(input_shape, target_shape):
@@ -122,10 +124,15 @@ def train(
                 optimizer.step()
 
             if global_step % eval_frequency == 0:
-                eval_loss = 0
-                iou = 0
+                eval_loss, iou, fscore = .0, .0, .0
                 tps, fps, fns = 0, 0, 0
                 model.eval()
+                # keep track of individual datasets so we get the
+                # macro average
+                val_idcs = [
+                    x//val_loader.batch_size
+                    for x in val_loader.dataset.cumulative_sizes
+                ]
                 for i, (imgs, msks) in enumerate(val_loader):
                     imgs = imgs.to("cuda", non_blocking=True)
                     msks = msks.to("cuda", non_blocking=True)
@@ -137,23 +144,34 @@ def train(
                             pred, msks = postprocess_batch(imgs, pred, msks)
 
                     if extra_val_metrics:
+                        # TODO use macro averaging for these, too
                         eval_loss += loss.item()
                         iou += get_iou(pred, msks).item()
+
                     tp, fp, fn = tp_fp_fn(pred, msks)
                     tps += tp
                     fps += fp
                     fns += fn
 
+                    if i > val_idcs[0]:
+                        # change dataset, calculate metrics so far
+                        val_idcs.pop(0)
+                        fscore += f1_score_(tps, fps, fns)
+                        tps, fps, fns = 0, 0, 0
+
                 if extra_val_metrics:
                     eval_loss /= len(val_loader)
                     iou /= len(val_loader)
-                fscore = f1_score_(tps, fps, fns).item()
+
+                assert tps != 0 or fps != 0 or fns != 0
+                fscore += f1_score_(tps, fps, fns)
+                fscore = (fscore / len(val_loader.dataset.datasets)).item()
                 duration = time.time()-begin
 
                 print(
                     f"\r{epoch:3d} {global_step:6d} {duration:3.1f}s "
                     f"train: {train_loss/step:.03f} val: {eval_loss:.03f} "
-                    f"iou: {iou:.03f} f1: {fscore:.03f} ", end=""
+                    f"iou: {iou:.03f} f1: {fscore:.03f}", end=""
                 )
 
                 row = (
@@ -384,9 +402,7 @@ def f1_score(input, target):
 
 
 def main(args):
-    data_root = os.environ.get(
-        "SEG_DATA_ROOT", os.path.join(os.getcwd(), os.pardir, "data"))
-    data_paths = map(lambda x: f"{data_root}/{x}", args.datasets)
+    data_paths = map(lambda x: f"{DATA_ROOT}/{x}", args.datasets)
 
     torch_init()
 
@@ -431,6 +447,8 @@ def main(args):
 
     with open(f"{args.checkpoint_dir}/config", "w") as fp:
         for k, v in (
+            ("model", args.model),
+            ("datasets", ",".join(args.datasets)),
             ("batch_size", args.batch_size),
             ("clip_gradents", args.clip_gradients),
             ("eval_frequency", eval_freq),

@@ -20,6 +20,9 @@ IMAGENET_MIN = (
     / torch.tensor(IMAGENET_NORM["std"])
 )
 
+DATA_ROOT = os.environ.get(
+    "SEG_DATA_ROOT", os.path.join(os.getcwd(), os.pardir, "data"))
+
 if not __package__:
     package_source_path = os.path.dirname(__file__)
 else:
