@@ -15,9 +15,15 @@ from torchvision.transforms.v2.functional import resize
 from seg_common import package_source_path
 from seg_utils import check_for_file, get_pretrained_fname
 
-sys.path.insert(0, f"{package_source_path}/deps/RootNav-2.0/training")
-from rootnav2.hourglass import HourglassNet, Bottleneck  # noqa: E402
-sys.path.remove(f"{package_source_path}/deps/RootNav-2.0/training")
+try:
+    sys.path.insert(0, f"{package_source_path}/deps/RootNav-2.0/training")
+    from rootnav2.hourglass import HourglassNet, Bottleneck  # noqa: E402
+except ModuleNotFoundError:
+    print("Warning! RootNav-2.0 not found. Attempting to use it will fail.")
+    HourglassNet = None
+    Bottleneck = None
+finally:
+    sys.path.remove(f"{package_source_path}/deps/RootNav-2.0/training")
 
 upstream_url = \
     "https://cvl.cs.nott.ac.uk/resources/trainedmodels/"
