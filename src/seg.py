@@ -10,7 +10,7 @@ for more details.
 import argparse
 from functools import partial
 import glob
-from itertools import repeat
+from itertools import chain, repeat
 from math import log10
 import os
 import re
@@ -44,11 +44,31 @@ def get_patches(input_shape, target_shape):
                 yield i, j, m2, n2
 
 
+def postprocess_batch(imgs, pred, msks):
+    if pred.shape[2:] != imgs.shape[2:]:
+        msks = TF.center_crop(msks, pred.shape[2:])
+
+    # corrective annotations have a zero'd blue channel
+    pad_mask = imgs.any(1)
+    is_corr = msks[:, 2].any(1).any(1).logical_not()
+    # either red or green color is valid
+    corr_mask = msks[is_corr, :2].any(1)
+    pred = torch.cat((
+        pred[~is_corr][:, 0][pad_mask[~is_corr]].flatten(),
+        pred[is_corr][(corr_mask & pad_mask[is_corr]).unsqueeze(1)]))
+    msks = torch.cat((
+        msks[~is_corr][:, 0][pad_mask[~is_corr]].flatten(),
+        # for the corrective, we take the green
+        msks[is_corr, 0][corr_mask & pad_mask[is_corr]]))
+
+    return pred, msks
+
+
 def train(
     model, train_loader, val_loader, checkpoint_dir, epochs,
     lr=1e-3, eval_frequency=80, warmup_steps=200, use_amp=False,
     clip_gradients=False, timeout=None, save_val_images=False,
-    patience=20, extra_val_metrics=False, sparse_annotations=False
+    patience=20, extra_val_metrics=False
 ):
     optimizer = torch.optim.AdamW(model.parameters(), lr=lr*1e-2)
     lr_log = log10(lr)
@@ -78,16 +98,10 @@ def train(
         for step, (imgs, msks) in enumerate(train_loader, 1):
             imgs = imgs.to("cuda", non_blocking=True)
             msks = msks.to("cuda", non_blocking=True)
-
             if msks.any():
                 with autocast("cuda", dtype=torch.bfloat16, enabled=use_amp):
                     pred = model(imgs)
-                    if pred.shape[2:] != imgs.shape[2:]:
-                        msks = TF.center_crop(msks, pred.shape[2:])
-                    if sparse_annotations:
-                        keep = msks[:, :2].any(1)  # either red or green
-                        pred = pred[keep.unsqueeze(1)]
-                        msks = msks[:, 0][keep]
+                    pred, msks = postprocess_batch(imgs, pred, msks)
                     loss = dice_loss(pred, msks) \
                         + F.binary_cross_entropy_with_logits(pred, msks)
 
@@ -120,19 +134,7 @@ def train(
                     ):
                         with torch.inference_mode(), torch.no_grad():
                             pred = model(imgs)
-                            if pred.shape[2:] != imgs.shape[2:]:
-                                msks = TF.center_crop(msks, pred.shape[2:])
-
-                            if sparse_annotations:
-                                keep = msks[:, :2].any(1)
-                                pred = pred[keep.unsqueeze(1)]
-                                msks = msks[:, 0][keep]
-
-                            if extra_val_metrics:
-                                loss = dice_loss(pred, msks) \
-                                    + F.binary_cross_entropy_with_logits(
-                                        pred, msks
-                                    )
+                            pred, msks = postprocess_batch(imgs, pred, msks)
 
                     if extra_val_metrics:
                         eval_loss += loss.item()
@@ -259,9 +261,10 @@ def get_resolution(fp):
 class PlainDataset(torch.utils.data.Dataset):
     def __init__(
         self, img_fnames, mask_fnames, shape=(1024, 1024),
-        sparse_annotations=False, train=False
+        corrective_annotations=False, train=False
     ):
         self.normalize = v2.Normalize(**IMAGENET_NORM)
+        self.shape = shape
 
         if train:
             self.augment = torch.jit.script(OurAugment())
@@ -279,10 +282,7 @@ class PlainDataset(torch.utils.data.Dataset):
                     get_patches(this_shape, shape)
                 ))
 
-        if sparse_annotations:
-            self.mask_read_mode = ImageReadMode.RGB
-        else:
-            self.mask_read_mode = ImageReadMode.GRAY
+        self.corrective_annotations = corrective_annotations
 
     def __getitem__(self, idx):
         img_fname, mask_fname, crop_indices = self.indices[idx]
@@ -290,7 +290,14 @@ class PlainDataset(torch.utils.data.Dataset):
         img = read_image(img_fname)
         img = TF.crop(img, *crop_indices)
 
-        mask = read_image(mask_fname, self.mask_read_mode)
+        mask = read_image(mask_fname, ImageReadMode.RGB)
+
+        if not self.corrective_annotations:
+            mask = TF.rgb_to_grayscale(mask).repeat(3, 1, 1)
+            mask[2] = 1
+        else:
+            mask[2] = 0
+
         mask = TF.crop(mask, *crop_indices)
         mask = (mask.to(torch.uint8) > 0).to(torch.uint8)
 
@@ -298,25 +305,40 @@ class PlainDataset(torch.utils.data.Dataset):
             img, mask = self.augment(img, mask)
 
         img = TF.convert_image_dtype(img, torch.float32)
-        img = self.normalize(img)
-        mask = mask.to(torch.float32)
+        img = TF.center_crop(self.normalize(img), self.shape)
+        mask = TF.center_crop(mask.to(torch.float32), self.shape)
         return img, mask
 
     def __len__(self):
         return len(self.indices)
 
 
+def get_sampler_weights(dataset):
+    lens = torch.tensor(list(map(len, dataset.datasets)))
+    return (1/lens).repeat_interleave(lens)
+
+
 def get_img_fnames(base, subset, kind):
     path = os.path.join(os.path.join(base, subset), kind)
-    return sorted(glob.glob(f"{path}/*"))
+    return sorted(chain(*map(glob.glob, (f"{path}/*.jp*g", f"{path}/*.png"))))
 
 
-def read_data(path, shape, sparse_annotations):
+def read_data(paths, shape):
+    train_datasets, val_datasets = \
+        zip(*map(partial(read_dataset, shape), paths))
+    return (
+        torch.utils.data.ConcatDataset(train_datasets),
+        torch.utils.data.ConcatDataset(val_datasets)
+    )
+
+
+def read_dataset(shape, path):
     return (
         PlainDataset(*map(
             partial(get_img_fnames, path, subset),
+
             ("photos", "annotations")
-        ), shape, sparse_annotations, subset == "train")
+        ), shape, path.endswith("_corrective"), subset == "train")
         for subset in ("train", "val")
     )
 
@@ -365,8 +387,10 @@ if __name__ == "__main__":
     models = {f"{k.__name__}/{v}": (k, v) for k, v in all_models()}
 
     parser = argparse.ArgumentParser()
-    parser.add_argument("data_path")
     parser.add_argument("model", choices=models)
+    parser.add_argument("datasets", nargs="+")
+    parser.add_argument("-s", "--shape", type=int, nargs=2,
+                        default=(1024, 1024))
     parser.add_argument("-a", "--learning-rate", type=float, default=1e-4)
     parser.add_argument("-b", "--batch-size", type=int, default=2)
     parser.add_argument("-e", "--epochs", type=int, default=1000)
@@ -375,12 +399,8 @@ if __name__ == "__main__":
     parser.add_argument("-m", "--mixed-precision", action="store_true")
     parser.add_argument("-p", "--patience", type=int, default=20)
     parser.add_argument("-o", "--checkpoint-dir", default="../out")
-    parser.add_argument(
-        "-s", "--shape", type=int, nargs=2, default=(1024, 1024)
-    )
     parser.add_argument("-t", "--timeout", type=int)
     parser.add_argument("-w", "--warmup-steps-mul", type=int, default=2)
-    parser.add_argument("-A", "--sparse-annotations", action="store_true")
     parser.add_argument("-C", "--clip-gradients", action="store_true")
     parser.add_argument("-N", "--no-optimizations", action="store_true")
     parser.add_argument("-P", "--pretrained", action="store_true")
@@ -388,14 +408,32 @@ if __name__ == "__main__":
     parser.add_argument("-X", "--extra-val-metrics", action="store_true")
     args = parser.parse_args()
 
+    data_root = os.environ.get(
+        "SEG_DATA_ROOT", os.path.join(os.getcwd(), os.pardir, "data"))
+    data_paths = map(lambda x: f"{data_root}/{x}", args.datasets)
+
     torch_init()
 
-    train_dataset, eval_dataset = read_data(
-        args.data_path, args.shape, args.sparse_annotations)
-    print(f"#train: {len(train_dataset)} #val: {len(eval_dataset)}")
+    train_dataset, eval_dataset = read_data(data_paths, args.shape)
+
+    if not args.eval_frequency:
+        args.eval_frequency = \
+            min(map(len, train_dataset.datasets)) * len(train_dataset.datasets)
+
+    print(f"#train: {len(train_dataset)} #val: {len(eval_dataset)} "
+          f"val f: {args.eval_frequency}")
+    eval_freq = args.eval_frequency // args.batch_size
+
+    if args.eval_frequency % args.batch_size:
+        eval_freq += 1
+
+    sampler = torch.utils.data.WeightedRandomSampler(
+        get_sampler_weights(train_dataset), args.eval_frequency)
+
+    warmup_st = args.warmup_steps_mul * eval_freq
 
     train_loader = DataLoader(
-        train_dataset, batch_size=args.batch_size, shuffle=True,
+        train_dataset, batch_size=args.batch_size, sampler=sampler,
         num_workers=args.num_workers, pin_memory=True,
         multiprocessing_context="fork" if args.num_workers else None,
         prefetch_factor=1 if args.num_workers else None
@@ -411,16 +449,6 @@ if __name__ == "__main__":
         args.model, pretrained=args.pretrained,
         optimize=not args.no_optimizations, models=models
     ).to("cuda")
-
-    if not args.eval_frequency:
-        args.eval_frequency = len(train_loader.dataset)
-
-    eval_freq = args.eval_frequency // args.batch_size
-
-    if args.eval_frequency % args.batch_size:
-        eval_freq += 1
-
-    warmup_st = args.warmup_steps_mul * eval_freq
 
     if not os.path.exists(args.checkpoint_dir):
         os.mkdir(args.checkpoint_dir)
@@ -456,7 +484,6 @@ if __name__ == "__main__":
             patience=args.patience,
             save_val_images=args.save_val_images,
             extra_val_metrics=args.extra_val_metrics,
-            sparse_annotations=args.sparse_annotations
         )
     except KeyboardInterrupt:
         print()
