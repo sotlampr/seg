@@ -8,6 +8,7 @@ file in the root directory of the project or <https://www.gnu.org/licenses/>
 for more details.
 """
 import argparse
+import datetime
 from functools import partial
 import glob
 from itertools import chain, repeat
@@ -209,6 +210,13 @@ def train(
                     break
                 else:
                     print()
+
+                timestamp = datetime.datetime.now().strftime("%Y%M%d_%H%M")
+
+                torch.save(
+                    model.state_dict(),
+                    checkpoint_dir + f"/checkpoint{epoch:03d}_{timestamp}.pth"
+                )
 
                 model.train()
 
@@ -460,7 +468,7 @@ def main(args):
             ("optimize", not args.no_optimizations),
             ("patience", args.patience),
             ("pretrained", args.pretrained),
-            ("shape", args.shape),
+            ("shape", ",".join(map(str, args.shape))),
             ("timeout", args.timeout),
             ("warmup_steps", warmup_st),
         ):
