@@ -211,7 +211,7 @@ def train(
                 else:
                     print()
 
-                timestamp = datetime.datetime.now().strftime("%Y%M%d_%H%M")
+                timestamp = datetime.datetime.now().strftime("%Y%m%d_%H%M")
 
                 torch.save(
                     model.state_dict(),
@@ -450,6 +450,9 @@ def main(args):
         optimize=not args.no_optimizations, models=get_model_dict()
     ).to("cuda")
 
+    if args.checkpoint:
+        raise NotImplementedError
+
     if not os.path.exists(args.checkpoint_dir):
         os.mkdir(args.checkpoint_dir)
 
@@ -459,6 +462,7 @@ def main(args):
             ("datasets", ",".join(args.datasets)),
             ("batch_size", args.batch_size),
             ("clip_gradents", args.clip_gradients),
+            ("checkpoint", args.checkpoint),
             ("eval_frequency", eval_freq),
             ("learning_rate", args.learning_rate),
             ("mixed_precision", args.mixed_precision),
@@ -523,6 +527,7 @@ def cli_main():
     parser.add_argument("-P", "--pretrained", action="store_true")
     parser.add_argument("-S", "--save-val-images", action="store_true")
     parser.add_argument("-X", "--extra-val-metrics", action="store_true")
+    parser.add_argument("--checkpoint")
     args = parser.parse_args()
     return main(args)
 
