@@ -19,6 +19,7 @@ import torch
 from torchvision.io import read_image as read_image_, ImageReadMode
 
 from seg import f1_score_, tp_fp_fn
+from seg_common import DATA_ROOT
 
 
 def read_image(fn, mode="GRAY"):
@@ -26,8 +27,9 @@ def read_image(fn, mode="GRAY"):
     return img.cuda()
 
 
-def main(pred_folder, true_folder):
-    sparse_annotations = "_corrective" in pred_folder
+def main(pred_folder, dataset, subset):
+    sparse_annotations = dataset.endswith("_corrective")
+    true_folder = os.path.join(DATA_ROOT, dataset, subset, "annotations")
     target_imgs = {
         os.path.basename(fn):
             read_image(fn, "RGB" if sparse_annotations else "GRAY")
@@ -66,12 +68,13 @@ def main(pred_folder, true_folder):
         for k, v in losses.items():
             writer.writerow((k, v))
 
+    return 0 
+
 
 if __name__ == "__main__":
-    if len(sys.argv) != 3 or sys.argv[1] in {"-h", "--help"}:
+    if len(sys.argv) != 4 or sys.argv[1] in {"-h", "--help"}:
         print(
-            f"Usage: {sys.argv[0]} PREDICTIONS GROUND_TRUTH\n"
-            "where PREDICTIONS and GROUND_TRUTH is a folder "
-            "containing identically named *.png files.")
+            f"Usage: {sys.argv[0]} PREDICTIONS DATASET SUBSET\n"
+            "where PREDICTIONS is a folder containing *.png files.")
         sys.exit(1)
-    main(*sys.argv[1:])
+    sys.exit(main(*sys.argv[1:]))

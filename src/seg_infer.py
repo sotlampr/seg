@@ -21,32 +21,17 @@ import sys
 import traceback
 
 import torch
-from torchvision.io import decode_image, write_png, write_jpeg
+from torchvision.io import decode_image, write_png
 from torchvision.transforms.v2.functional import \
     center_crop, convert_image_dtype, normalize, pad
 
 from seg_common import \
     DATA_ROOT, IMAGENET_NORM, \
-    get_model_dict, expand_filename, load_model, torch_init
+    get_model_dict, load_model, torch_init
 
 
 def path_for(dataset, base_path, subset="val"):
     return os.path.join(base_path, dataset, subset)
-
-
-def make_path(fname, ident, dataset, base_path):
-    if ident:
-        base_fn, ext = os.path.splitext(fname)
-        rest = (ident, fname)
-    else:
-        rest = (fname,)
-    return os.path.join(base_path, dataset, *rest)
-
-
-def make_dirs(dataset, base_path=None, *paths):
-    os.makedirs(os.path.join(base_path, dataset), exist_ok=True)
-    for path in paths:
-        os.makedirs(os.path.join(base_path, dataset, path), exist_ok=True)
 
 
 def get_images(dataset, base_path, out_path, subset="val", num_samples=None,
@@ -55,7 +40,6 @@ def get_images(dataset, base_path, out_path, subset="val", num_samples=None,
         to out_path.
     """
     print("loading", dataset)
-    make_path_f = partial(make_path, base_path=out_path, dataset=dataset)
     data_path = path_for(dataset, base_path, subset)
     fns = list(zip(*map(
         lambda x: sorted(
@@ -67,30 +51,13 @@ def get_images(dataset, base_path, out_path, subset="val", num_samples=None,
         random.seed(seed)
         fns = random.choices(fns, k=num_samples)
 
-    imgs, masks = zip(*map(lambda a: tuple(map(decode_image, a)), fns))
+    data_iter = map(lambda a: tuple(map(decode_image, a)), fns)
 
-    if masks[0].ndim == 3 and masks[0].shape[0] == 4:
-        masks = [m[:-1] for m in masks]
-
-    make_dirs(dataset, out_path, "photos", "annotations")
-    for i, (img, mask, (img_fn, ann_fn)) in enumerate(zip(imgs, masks, fns)):
-        if img_fn.endswith(".jpg") or img_fn.endswith(".jpeg"):
-            write_jpeg(
-                convert_image_dtype(img, torch.uint8),
-                make_path_f(os.path.split(img_fn)[1], "photos")
-            )
-        else:
-            write_png(
-                convert_image_dtype(img, torch.uint8),
-                make_path_f(os.path.split(img_fn)[1], "photos")
-            )
-        write_png(
-            convert_image_dtype(mask, torch.uint8),
-            make_path_f(os.path.split(ann_fn)[1], "annotations")
-        )
-
-        imgs = convert_image_dtype(img, torch.float)
-        masks = mask.any(1).to(torch.float)
+    for i, ((img, mask), (img_fn, ann_fn)) in enumerate(zip(data_iter, fns)):
+        if mask.ndim == 3 and mask.shape == 4:
+            mask = mask[:-1]
+        img = convert_image_dtype(img, torch.float)
+        mask = mask.any(1).to(torch.float)
         yield img, mask, (img_fn, ann_fn)
 
 
@@ -175,7 +142,6 @@ def segment(model, image, in_shape, out_shape, device):
 
 
 def main(args):
-
     torch_init(deterministic=True)
 
     if (not args.force) \
@@ -191,65 +157,56 @@ def main(args):
         out_path=args.out_path, num_samples=args.num_samples)
 
     models = get_model_dict()
-    for model_fn in args.model_checkpoints:
-        print("doing", model_fn)
 
-        # get input shape for this model from '$path/config' file
-        config_fn = os.path.join(os.path.dirname(model_fn), "config")
-        in_shape, model_type = None, None
-        with open(config_fn) as fp:
-            for ln in fp.readlines():
-                key, val = ln.strip().split("\t", maxsplit=1)
-                if key == "shape":
-                    in_shape = tuple(map(int, val.strip("[]").split(",")))
-                elif key == "model":
-                    model_type = val
-                if in_shape is not None and model_type is not None:
-                    break
+    model_fn = args.model_checkpoint
 
-        model = \
-            load_model(model_type, False, True, models).to(args.device).eval()
-        weights = torch.load(model_fn, weights_only=False)
+    # get input shape for this model from '$path/config' file
+    config_fn = os.path.join(os.path.dirname(model_fn), "config")
+    in_shape, model_type = None, None
+    with open(config_fn) as fp:
+        for ln in fp.readlines():
+            key, val = ln.strip().split("\t", maxsplit=1)
+            if key == "shape":
+                in_shape = tuple(map(int, val.strip("[]").split(",")))
+            elif key == "model":
+                model_type = val
+            if in_shape is not None and model_type is not None:
+                break
 
-        try:
-            model.load_state_dict(weights)
-        except RuntimeError:
-            print(f"FAILED: {model_fn}")
-            traceback.print_exc()
-            print("Loading with strict=false")
-            model.load_state_dict(weights, strict=False)
+    model = \
+        load_model(model_type, False, True, models).to(args.device).eval()
+    weights = torch.load(model_fn, weights_only=False)
 
-        model_name = os.path.basename(os.path.dirname(model_fn))
+    try:
+        model.load_state_dict(weights)
+    except RuntimeError:
+        print(f"FAILED: {model_fn}")
+        traceback.print_exc()
+        print("Loading with strict=false")
+        model.load_state_dict(weights, strict=False)
 
-        for dataset in args.datasets:
+    # run a sample inference to get output shape
+    model.eval()
+    with torch.no_grad(), torch.inference_mode():
+        sample = model(torch.zeros((1, 3, *in_shape)).to(args.device))
+        out_shape = sample.shape[2:]
 
-            make_dirs(dataset, args.out_path, model_name)
-            make_path_f = partial(
-                make_path, dataset=dataset, base_path=args.out_path,
-            )
-
-            # run a sample inference to get output shape
-            model.eval()
-            with torch.no_grad(), torch.inference_mode():
-                sample = model(torch.zeros((1, 3, *in_shape)).to(args.device))
-                out_shape = sample.shape[2:]
-
-            im_iter = get_images_f(dataset)
-            for i, (img, _, (_, fn)) in enumerate(zip(im_iter), 1):
-                print(f"\r{i:04d}", end="")
-                segmented = \
-                    segment(model, img, in_shape, out_shape, args.device)
-                write_png(
-                    convert_image_dtype(segmented.unsqueeze(0), torch.uint8),
-                    make_path_f(os.path.split(fn)[1], model_name))
-                print(79*" ", "\r", end="")
+    im_iter = get_images_f(args.dataset)
+    for i, (img, _, (_, fn)) in enumerate(im_iter, 1):
+        print(f"\r{i:04d}", end="")
+        segmented = \
+            segment(model, img, in_shape, out_shape, args.device)
+        write_png(
+            convert_image_dtype(segmented.unsqueeze(0), torch.uint8),
+            os.path.join(args.out_path, os.path.basename(fn)))
+        print(79*" ", "\r", end="")
     return 0
 
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
-    parser.add_argument("model_checkpoints", nargs="+")
-    parser.add_argument("-d", "--datasets", nargs="+", required=True)
+    parser.add_argument("model_checkpoint")
+    parser.add_argument("dataset")
     parser.add_argument("-o", "--out-path", default="../inferred")
     parser.add_argument("-s", "--subset", default="val",
                         choices=("train", "val", "test"))
