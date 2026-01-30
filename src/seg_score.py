@@ -26,34 +26,15 @@ def read_image(fn, mode="GRAY"):
     return img.cuda()
 
 
-if len(sys.argv) != 2 or sys.argv[1] in {"-h", "--help"}:
-    print(
-        f"Usage: {sys.argv[0]} BASE_PATH\n"
-        "where BASE_PATH contains annotations/*.png and any model folders.")
-    sys.exit(1)
-
-
-sparse_annotations = False
-
-if "deeproot_ann" in sys.argv[1]:
-    sparse_annotations = True
-
-base_path = sys.argv[1]
-target_imgs = {
-    os.path.basename(fn):
-        read_image(fn, "RGB" if sparse_annotations else "GRAY")
-    for fn in glob.glob(f"{base_path}/annotations/*.png")
-}
-
-
-for model_path in glob.glob(f"{base_path}/*"):
-    if model_path.endswith("annotations") or model_path.endswith("photos"):
-        continue
-
-    model_imgs = {
-        fn: read_image(f"{model_path}/{fn}")
-        for fn in target_imgs
+def main(pred_folder, true_folder):
+    sparse_annotations = "_corrective" in pred_folder
+    target_imgs = {
+        os.path.basename(fn):
+            read_image(fn, "RGB" if sparse_annotations else "GRAY")
+        for fn in glob.glob(f"{true_folder}/*.png")
     }
+
+    model_imgs = {fn: read_image(f"{pred_folder}/{fn}") for fn in target_imgs}
 
     if sparse_annotations:
         tps_fps_fns = {}
@@ -79,8 +60,18 @@ for model_path in glob.glob(f"{base_path}/*"):
     }
     losses["micro"] = f1_score_(tps, fps, fns).item()
 
-    with open(f"{model_path}/f1_score.csv", "w", newline=None) as fp:
+    with open(f"{pred_folder}/f1_score.csv", "w", newline=None) as fp:
         writer = csv.writer(fp)
         writer.writerow(("filename", "f1_score"))
         for k, v in losses.items():
             writer.writerow((k, v))
+
+
+if __name__ == "__main__":
+    if len(sys.argv) != 3 or sys.argv[1] in {"-h", "--help"}:
+        print(
+            f"Usage: {sys.argv[0]} PREDICTIONS GROUND_TRUTH\n"
+            "where PREDICTIONS and GROUND_TRUTH is a folder "
+            "containing identically named *.png files.")
+        sys.exit(1)
+    main(*sys.argv[1:])
