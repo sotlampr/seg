@@ -17,6 +17,7 @@ import os
 import re
 import sys
 import time
+import traceback
 
 import torch
 from torch import nn
@@ -451,7 +452,14 @@ def main(args):
     ).to("cuda")
 
     if args.checkpoint:
-        raise NotImplementedError
+        weights = torch.load(args.checkpoint, weights_only=False)
+        try:
+            model.load_state_dict(weights)
+        except RuntimeError:
+            print(f"Could not load state dict from {args.checkpoint}")
+            traceback.print_exc()
+            print("Loading with strict=false")
+            model.load_state_dict(weights, strict=False)
 
     if not os.path.exists(args.checkpoint_dir):
         os.mkdir(args.checkpoint_dir)
