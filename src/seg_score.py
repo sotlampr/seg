@@ -71,10 +71,14 @@ def main(pred_folder, dataset, subset):
     return 0 
 
 
-if __name__ == "__main__":
+def cli_main():
     if len(sys.argv) != 4 or sys.argv[1] in {"-h", "--help"}:
         print(
             f"Usage: {sys.argv[0]} PREDICTIONS DATASET SUBSET\n"
             "where PREDICTIONS is a folder containing *.png files.")
-        sys.exit(1)
-    sys.exit(main(*sys.argv[1:]))
+        return 1
+    return main(*sys.argv[1:])
+
+
+if __name__ == "__main__":
+    sys.exit(cli_main())

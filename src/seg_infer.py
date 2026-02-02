@@ -203,7 +203,7 @@ def main(args):
     return 0
 
 
-if __name__ == "__main__":
+def cli_main():
     parser = argparse.ArgumentParser()
     parser.add_argument("model_checkpoint")
     parser.add_argument("dataset")
@@ -214,4 +214,8 @@ if __name__ == "__main__":
     parser.add_argument("-D", "--device", default="cuda")
     parser.add_argument("-f", "--force", action="store_true")
     args = parser.parse_args()
-    sys.exit(main(args))
+    return main(args)
+
+
+if __name__ == "__main__":
+    sys.exit(cli_main())

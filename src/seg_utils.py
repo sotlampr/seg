@@ -10,15 +10,16 @@ import os
 
 
 def get_pretrained_fname(fname):
-    return os.path.join(
+    pt_path = os.environ.get(
+        "SEG_MODEL_ROOT",
         os.path.join(
             os.path.abspath(
                 os.path.join(os.path.split(__file__)[0], "..")
             ),
             "pretrained"
-        ),
-        fname
+        )
     )
+    return os.path.join(pt_path, fname)
 
 
 def check_for_file(pretrained_weights, get_url, *args):

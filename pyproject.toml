@@ -4,6 +4,8 @@ version = "2026.01.29"
 
 [project.scripts]
 seg = "seg:cli_main"
+seg-infer = "seg_infer:cli_main"
+seg-score = "seg_score:cli_main"
 
 [tool.pytest.ini_options]
 pythonpath = [
