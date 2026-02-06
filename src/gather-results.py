@@ -218,7 +218,10 @@ for model_id, model in sorted(models.items()):
 
 if not args.skip_header:
     for dataset_name, dataset in datasets.items():
-        out = {"model": "gold_annotation", "dataset": dataset_name}
+        out = {
+            **args.constant,
+            "model": "gold_annotation", "dataset": dataset_name
+        }
         for key in rv_keys.values():
             if key.endswith("_px") and args.convert:
                 key = key[:-3] + "_mm"
