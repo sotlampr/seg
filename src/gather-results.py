@@ -46,7 +46,8 @@ parser.add_argument("base_path", help="Should contain [DATASET]/[MODEL]")
 parser.add_argument("-X", "--constant", action="append",
                     default=list(), type=key_value_pairs)
 parser.add_argument("-v", "--verbose", action="store_true")
-parser.add_argument("-S", "--skip-header", action="store_true")
+parser.add_argument("-H", "--write-header", action="store_true")
+parser.add_argument("-G", "--include-gold", action="store_true")
 parser.add_argument("-C", "--convert", action="store_true",
                     help="Convert to mm")
 args = parser.parse_args()
@@ -216,7 +217,7 @@ for model_id, model in sorted(models.items()):
 
     results.append(out)
 
-if not args.skip_header:
+if args.include_gold:
     for dataset_name, dataset in datasets.items():
         out = {
             **args.constant,
@@ -231,4 +232,5 @@ if not args.skip_header:
         results.append(out)
 
 df = pd.DataFrame.from_dict(results)
-df.to_csv(sys.stdout, header=not args.skip_header, index=False)
+df.to_csv(sys.stdout, header=args.write_header, index=False)
+sys.exit(0)
