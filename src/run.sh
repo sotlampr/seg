@@ -40,7 +40,18 @@ trap 'die $LINENO' ERR
 
 # samII/hiera-small-cotton-false
 batch_size () {
-  echo 16
+  case $model in
+    segmentation_pytorch/manet-inceptionv4)
+      echo 8
+      ;;
+    mb_sam/vit_t)
+      echo 16
+      ;;
+    *)
+      echo "model $model not recognized"
+      exit 2
+      ;;
+    esac
 }
 
 shape () {
