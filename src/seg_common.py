@@ -59,7 +59,7 @@ def all_models():
 
 
 def get_model_dict():
-    return {f"{k.__name__.strip('seg_')}/{v}": (k, v) for k, v in all_models()}
+    return {f"{k.__name__[4:]}/{v}": (k, v) for k, v in all_models()}
 
 
 def load_model(model_id, pretrained=False, optimize=True, models=None):
