@@ -18,7 +18,7 @@ DATA_PATH=${DATA_PATH:=$HOME/src/seg/data}
 if test ${HOSTNAME} = "triton"; then
   DATASETS="chicory grassland peanut sunflower"
 elif test ${HOSTNAME} = "prime"; then
- DATASETS="cotton deeproot_ann papaya sesame switchgrass"
+ DATASETS="cotton deeproot_corrective papaya sesame switchgrass"
 else
   echo "Unkown host '$HOSTNAME'"
   exit 2
@@ -40,13 +40,7 @@ trap 'die $LINENO' ERR
 
 # samII/hiera-small-cotton-false
 batch_size () {
-  run_id=$1
-  case $run_id in
-    mb_sam/vit_t-cotton-*)
-      echo 8;;
-    *)
-      echo 16;;
-    esac
+  echo 16
 }
 
 shape () {
@@ -104,14 +98,7 @@ for i in $(seq 1 $NUM_RUNS); do
         clip_arg=-C
         workers_flag=-j$NUM_WORKERS
         extra_args="-w2 $pt_flag -a$lr -b$bs"
-        case $dataset in
-          *_ann)
-            # sparse annotations
-            echo "	SPARSE ANNOTATIONS"
-            extra_args="$extra_args -s $s -t$timeout $amp_arg $clip_arg -A";;
-          *)
-            extra_args="$extra_args -s $s -t$timeout $amp_arg $clip_arg";;
-        esac;
+        extra_args="$extra_args -s $s -t$timeout $amp_arg $clip_arg"
         echo "	LR             = $lr"
         echo "	BATCH_SIZE     = $bs"
         echo "	SHAPE          = $s"
