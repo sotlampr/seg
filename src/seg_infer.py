@@ -18,6 +18,7 @@ import math
 import os
 import random
 import sys
+import time
 import traceback
 
 import torch
@@ -144,7 +145,7 @@ def segment(model, image, in_shape, out_shape, device):
 def main(args):
     torch_init(deterministic=True)
 
-    if (not args.force) \
+    if (not args.force and not args.benchmark) \
             and (os.path.exists(args.out_path)
                  and len(os.listdir(args.out_path)) != 0):
         print(
@@ -191,15 +192,33 @@ def main(args):
         sample = model(torch.zeros((1, 3, *in_shape)).to(args.device))
         out_shape = sample.shape[2:]
 
+    mem_before = torch.cuda.memory_reserved()
+
     im_iter = get_images_f(args.dataset)
+
+    begin = time.time()
+    num_images = 0
     for i, (img, _, (_, fn)) in enumerate(im_iter, 1):
         print(f"\r{i:04d}", end="")
         segmented = \
             segment(model, img, in_shape, out_shape, args.device)
-        write_png(
-            convert_image_dtype(segmented.unsqueeze(0), torch.uint8),
-            os.path.join(args.out_path, os.path.basename(fn)))
+        if not args.benchmark:
+            write_png(
+                convert_image_dtype(segmented.unsqueeze(0), torch.uint8),
+                os.path.join(args.out_path, os.path.basename(fn)))
+        num_images += 1
         print(79*" ", "\r", end="")
+
+    mem_after = torch.cuda.memory_reserved()
+    duration = time.time() - begin
+    with open(os.path.join(args.out_path, "stats.tsv"), "w") as fp:
+        print(f"dataset\t{args.dataset}", file=fp)
+        print(f"resolution\t{' '.join(map(str, in_shape))}", file=fp)
+        print(f"num_images\t{num_images}", file=fp)
+        print(f"total_duration_seconds\t{duration}", file=fp)
+        print(f"gpu_memory_model_bytes\t{mem_before}", file=fp)
+        print(f"gpu_memory_after_bytes\t{mem_after}", file=fp)
+
     return 0
 
 
@@ -213,6 +232,7 @@ def cli_main():
     parser.add_argument("-n", "--num-samples", type=int)
     parser.add_argument("-D", "--device", default="cuda")
     parser.add_argument("-f", "--force", action="store_true")
+    parser.add_argument("-B", "--benchmark", action="store_true")
     args = parser.parse_args()
     return main(args)
 
