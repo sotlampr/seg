@@ -17,6 +17,8 @@
 # Citation
 If you use this work, please cite:
 
+[A systematic comparison of transformers and ConvNets for root segmentation across nine datasets.](https://link.springer.com/article/10.1186/s13007-026-01533-6)
+
 > Smith, Abraham George, et al. "A systematic comparison of transformers and
   ConvNets for root segmentation across nine datasets." Plant Methods (2026).
 
