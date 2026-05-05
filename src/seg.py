@@ -1,11 +1,16 @@
 #!/usr/bin/env python
 """
-Copyright (C) 2025, 2026  Sotiris Lamprinidis
+Copyright (C) 2025, 2026  Sotiris Lamprinidis, Abraham George Smith
 
 This program is free software and all terms of the GNU General Public License
 version 3 as published by the Free Software Foundation apply. See the LICENSE
 file in the root directory of the project or <https://www.gnu.org/licenses/>
 for more details.
+
+
+If you use this software, please cite:
+    Smith, Abraham George, et al. "A systematic comparison of transformers and
+    ConvNets for root segmentation across nine datasets." Plant Methods (2026).
 """
 import argparse
 import datetime

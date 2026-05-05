@@ -14,6 +14,22 @@
 - On-the-fly loading images from disk for training
 - Support for arbitrary patch sizes and some augmentation
 
+# Citation
+If you use this work, please cite:
+
+> Smith, Abraham George, et al. "A systematic comparison of transformers and
+  ConvNets for root segmentation across nine datasets." Plant Methods (2026).
+
+```bibtex
+@article{smith2026systematic,
+  title={A systematic comparison of transformers and ConvNets for root segmentation across nine datasets},
+  author={Smith, Abraham George and Lamprinidis, Sotiris and Seethepalli, Anand and York, Larry M and Han, Eusun and M{\"o}hl, Patrick and Boulata, Kyriaki and Thorup-Kristensen, Kristian and Petersen, Jens},
+  journal={Plant Methods},
+  year={2026},
+  publisher={Springer}
+}
+```
+
 # Installation
 Some of the included packages have different requirements. E.g. in an Ubuntu box,
 one will need g++ and python3-dev.
